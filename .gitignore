@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.bob/tmp/
+*.log
+.DS_Store
+
+# Original reference scans + PDF (99 MB). The app ships the WebP versions from public/ instead.
+/assets/

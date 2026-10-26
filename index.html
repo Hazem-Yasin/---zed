@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/quran-icon.svg" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
+    <meta name="theme-color" content="#020617" />
+    <meta name="description" content="زد - مصحف الخرائط الذهنية التفاعلي: قراءة وتدبر وحفظ بأسلوب تفاعلي ذكي" />
+    <title>زد | مصحف الخرائط الذهنية</title>
+    <style>
+      /* Startup splash: inline so it paints before any JS/CSS bundle arrives. Removed by src/splash.ts. */
+      #splash {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2rem;
+        padding: 1.5rem;
+        background: radial-gradient(ellipse at 50% 42%, #0e1630 0%, #060a18 55%, #020617 100%);
+        color: #fde68a;
+        text-align: center;
+        transition: opacity 0.5s ease-out;
+      }
+      #splash.splash-out { opacity: 0; pointer-events: none; }
+      #splash .splash-mark { position: relative; width: 7rem; height: 7rem; }
+      #splash .splash-mark img {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        animation: splash-rise 0.7s ease-out both;
+      }
+      #splash .splash-mark::before {
+        content: '';
+        position: absolute;
+        inset: -0.9rem;
+        border-radius: 2.2rem;
+        border: 1px solid rgba(245, 158, 11, 0.35);
+        animation: splash-pulse 2.4s ease-in-out infinite;
+      }
+      /* Fades in by itself, so it shows even if the JS bundle is slow or fails. */
+      #splash .splash-ayah {
+        max-width: 28rem;
+        animation: splash-rise 0.9s ease-out 0.5s both;
+      }
+      #splash .splash-ayah p {
+        margin: 0;
+        font-family: 'Scheherazade New', Amiri, 'Noto Naskh Arabic', serif;
+        font-weight: 700;
+        font-size: clamp(1.6rem, 5.5vw, 2.4rem);
+        line-height: 1.9;
+        color: #fcd34d;
+      }
+      #splash .splash-ayah small {
+        display: block;
+        margin-top: 0.4rem;
+        font-family: Cairo, system-ui, sans-serif;
+        font-size: 0.85rem;
+        color: #94a3b8;
+        letter-spacing: 0.02em;
+      }
+      @keyframes splash-rise { from { opacity: 0; transform: translateY(8px) scale(0.96); } to { opacity: 1; transform: none; } }
+      @keyframes splash-pulse { 0%, 100% { opacity: 0.25; transform: scale(0.97); } 50% { opacity: 0.8; transform: scale(1.03); } }
+      @media (prefers-reduced-motion: reduce) {
+        #splash { transition-duration: 0.001ms; }
+        #splash .splash-mark img, #splash .splash-mark::before, #splash .splash-ayah { animation: none; }
+      }
+    </style>
+  </head>
+  <body class="bg-slate-950 text-slate-100 font-cairo antialiased min-h-screen selection:bg-amber-500/30 selection:text-amber-200">
+    <div id="splash" role="status" aria-live="polite" aria-label="جارٍ التحميل">
+      <div class="splash-mark"><img src="/quran-icon.svg" alt="زد" width="112" height="112" /></div>
+      <div class="splash-ayah">
+        <p lang="ar">أَوْ زِدْ عَلَيْهِ وَرَتِّلِ ٱلْقُرْءَانَ تَرْتِيلًا</p>
+        <small>المزّمّل · ٤</small>
+      </div>
+    </div>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
