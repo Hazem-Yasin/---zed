@@ -115,7 +115,7 @@ const GuidedTour: React.FC<Props> = ({ onStep, onEnd }) => {
   const TOP = 72;
   const BOTTOM = 96;
   const MARGIN = 12;
-  const lefts = [(vw - cardW) / 2, vw - cardW - MARGIN, MARGIN]; // center, right, left
+  const lefts = [vw - cardW - MARGIN, MARGIN]; // right, left (never center — keep the globe visible)
   const tops = step.dock === 'top' ? [TOP] : step.dock === 'bottom' ? [vh - BOTTOM - cardH] : [vh - BOTTOM - cardH, TOP];
   let cardLeft = lefts[0];
   let cardTop = tops[0];
