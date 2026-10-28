@@ -115,15 +115,18 @@ export const QuranGlobe: React.FC<QuranGlobeProps> = ({ onOpenAyah, onOpenMindMa
     if (!eng || !want) return;
     const m = eng.getMode();
     const cur = curRef.current;
+    // Once the target is reached the tour lets go, so the user's own clicks are never fought.
     if (m === 'globe') {
       if (want.surah !== null) eng.enterSurah(want.surah);
       else wantRef.current = null;
     } else if (m === 'surah') {
       if (want.surah !== cur.surah) eng.leaveSurah();
       else if (want.section !== undefined) eng.enterSection(want.section);
+      else wantRef.current = null;
     } else if (m === 'section') {
       if (want.surah !== cur.surah || want.section === undefined) eng.leaveSection();
       else if (want.section !== cur.branch) eng.enterSection(want.section);
+      else wantRef.current = null;
     }
   };
   const pumpRef = useRef(pump);

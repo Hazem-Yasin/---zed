@@ -217,3 +217,5 @@ const GuidedTour: React.FC<Props> = ({ onStep, onEnd }) => {
     </div>
   );
 };
+
+export default GuidedTour;

@@ -1,4 +1,5 @@
 import type { GlobeLevel, RevelationFilter } from '../components/globe/globeEngine';
+import { writeStored } from '../hooks/usePersistentState';
 
 /**
  * Tiny command channel between the guided tour and the globe screen.
@@ -44,8 +45,18 @@ export const tourBus = {
       listeners.forEach((l) => l(cmd));
       return;
     }
-    // Only the latest wish matters while nobody is listening; "restore" supersedes everything.
-    queue = cmd.type === 'restore' ? [cmd] : [...queue.filter((c) => c.type !== 'apply'), cmd];
+    if (cmd.type === 'restore') {
+      // No globe on screen: put the user's settings straight into storage; the globe reads them when it mounts.
+      if (saved) {
+        writeStored('globe-level', saved.level);
+        writeStored('globe-filter', saved.filter);
+        saved = null;
+      }
+      queue = [];
+      return;
+    }
+    // Only the latest wish matters while nobody is listening.
+    queue = [cmd];
   },
 
   subscribe(l: Listener): () => void {

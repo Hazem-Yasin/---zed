@@ -1,6 +1,6 @@
 import React from 'react';
 import { Compass, Hand, MousePointerClick, Search, X } from 'lucide-react';
-import { usePersistentState } from '../../hooks/usePersistentState';
+import { usePersistentState, writeStored } from '../../hooks/usePersistentState';
 
 /** One-time, dismissible tips card shown over the globe on the very first visit. */
 export const FirstRunHint: React.FC<{ onStartTour?: () => void }> = ({ onStartTour }) => {
@@ -54,6 +54,7 @@ export const FirstRunHint: React.FC<{ onStartTour?: () => void }> = ({ onStartTo
               type="button"
               onClick={() => {
                 setSeen(true);
+                writeStored('hint-globe-seen', true); // the tour unmounts this card before the effect would persist it
                 onStartTour();
               }}
               className="flex-1 py-2 rounded-xl border border-sky-500/50 text-sky-300 text-xs font-black hover:bg-sky-500/10 flex items-center justify-center gap-1.5"

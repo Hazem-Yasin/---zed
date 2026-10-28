@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { AppViewMode, Ayah, QuizScope } from './types';
 import { Logo } from './components/ui/Logo';
 import { CommandPalette } from './components/ui/CommandPalette';
@@ -11,6 +11,8 @@ import { usePersistentState } from './hooks/usePersistentState';
 import { getAyahAudioUrl, fetchSurahAyahRange } from './services/quranApi';
 import { globalAudio } from './services/audioManager';
 import { library } from './services/library';
+import { tourBus, DEFAULT_GLOBE } from './services/tourBus';
+import type { TourStep } from './components/tour/tourSteps';
 import {
   BookOpen,
   Brain,
@@ -23,6 +25,7 @@ import {
   Orbit,
   Search,
   Map as MapIcon,
+  Route,
 } from 'lucide-react';
 
 /* Each screen is its own chunk: three.js (globe) is only downloaded when the globe is opened. */
@@ -33,6 +36,7 @@ const GlobalQuranMindMap = lazy(() => import('./components/mindmap/GlobalQuranMi
 const SectionMapExplorer = lazy(() => import('./components/mindmap/SectionMapExplorer').then((m) => ({ default: m.SectionMapExplorer })));
 const WordRevealTest = lazy(() => import('./components/testing/WordRevealTest').then((m) => ({ default: m.WordRevealTest })));
 const RandomPageQuiz = lazy(() => import('./components/testing/RandomPageQuiz').then((m) => ({ default: m.RandomPageQuiz })));
+const GuidedTour = lazy(() => import('./components/tour/GuidedTour'));
 
 const isPage = (v: unknown) => typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= 604;
 const isSurah = (v: unknown) => typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= 114;
@@ -84,10 +88,20 @@ export default function App() {
   // Quiz scope — set when launching quiz from globe
   const [quizScope, setQuizScope] = useState<QuizScope | undefined>(undefined);
 
-  // Remember where the reader stopped (drives "continue reading" on the home screen)
+  // Guided tour: while it runs it borrows the page / surah / screen, and gives them back when it ends
+  const [touring, setTouring] = useState<boolean>(false);
+  const tourReturn = useRef<{
+    view: AppViewMode;
+    page: number;
+    surah: number;
+    testTarget: Ayah | null;
+    quiz: QuizScope | undefined;
+  } | null>(null);
+
+  // Remember where the reader stopped (drives "continue reading" on the home screen); the tour must not touch it
   useEffect(() => {
-    if (currentView === 'mushaf') library.setLastRead(currentPage);
-  }, [currentView, currentPage]);
+    if (currentView === 'mushaf' && !touring) library.setLastRead(currentPage);
+  }, [currentView, currentPage, touring]);
 
   // Listen to global audio
   useEffect(() => {
@@ -168,6 +182,47 @@ export default function App() {
     setSelectedAyah(null);
   };
 
+  const startTour = () => {
+    tourReturn.current = { view: currentView, page: currentPage, surah: selectedSurahNumber, testTarget: testTargetAyah, quiz: quizScope };
+    setMenuOpen(false);
+    setPaletteOpen(false);
+    setSelectedAyah(null);
+    setTouring(true);
+  };
+
+  /** `keepView`: the user chose another screen while touring, so don't pull them back to where they started. */
+  const endTour = (_finished: boolean, keepView = false) => {
+    const back = tourReturn.current;
+    tourReturn.current = null;
+    setTouring(false);
+    tourBus.emit({ type: 'restore' });
+    if (!back) return;
+    setCurrentPage(back.page);
+    setSelectedSurahNumber(back.surah);
+    setTestTargetAyah(back.testTarget);
+    setQuizScope(back.quiz);
+    if (!keepView) setCurrentView(back.view);
+  };
+
+  // Each tour step drives the real screens: globe steps are sent to the globe, site steps open the page.
+  const handleTourStep = (step: TourStep) => {
+    setSelectedAyah(null);
+    if (step.view === 'globe') {
+      setCurrentView('globe');
+      tourBus.emit({ type: 'apply', s: step.globe ?? DEFAULT_GLOBE });
+      return;
+    }
+    if (step.page) setCurrentPage(step.page);
+    if (step.mindmapSurah) setSelectedSurahNumber(step.mindmapSurah);
+    if (step.sectionMap) {
+      const m = step.sectionMap;
+      setSectionMapState({ surahNumber: m.surah, branchId: m.branchId, startAyah: m.start, endAyah: m.end });
+    }
+    if (step.view === 'test-word-reveal') setTestTargetAyah(null);
+    if (step.view === 'test-random-ayah') setQuizScope(undefined);
+    setCurrentView(step.view);
+  };
+
   // Play audio in Modal with Global AudioManager
   const handlePlayModalAudio = (ayah: Ayah) => {
     const id = `modal-${ayah.numberInQuran}`;
@@ -218,7 +273,10 @@ export default function App() {
   const itemOn = 'bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/20';
   const activeItem = allItems.find(isActive);
 
-  const paletteCommands = allItems.map((i) => ({ id: i.id, label: i.label, run: i.run }));
+  const paletteCommands = [
+    ...allItems.map((i) => ({ id: i.id, label: i.label, run: i.run })),
+    { id: 'tour', label: 'جولة تعريفية في الموقع', run: startTour },
+  ];
 
   const openSurahInMushaf = (n: number) => {
     const s = SURAHS_LIST.find((x) => x.number === n);
@@ -226,6 +284,7 @@ export default function App() {
   };
 
   const pick = (it: NavItem) => {
+    if (touring) endTour(false, true);
     it.run();
     setMenuOpen(false);
   };
@@ -294,6 +353,15 @@ export default function App() {
           <Search className="w-5 h-5 shrink-0" />
           <span className="flex-1 text-start">بحث سريع</span>
           <kbd className="text-xs border border-slate-600 rounded px-1">Ctrl K</kbd>
+        </button>
+
+        <button
+          type="button"
+          onClick={startTour}
+          className="mt-2 w-full flex items-center gap-2 px-3 py-2.5 rounded-xl border border-sky-500/40 bg-sky-500/10 text-sky-200 hover:bg-sky-500/20 text-sm font-bold"
+        >
+          <Route className="w-5 h-5 shrink-0" />
+          <span className="flex-1 text-start">جولة تعريفية في الموقع</span>
         </button>
 
         <nav className="mt-4 space-y-3 flex-1">
@@ -368,6 +436,8 @@ export default function App() {
                   onOpenMindMap={handleOpenMindMap}
                   onNavigateToMushaf={handleNavigateToMushaf}
                   onStartQuiz={handleStartQuiz}
+                  onStartTour={startTour}
+                  touring={touring}
                 />
               )}
 
@@ -406,7 +476,7 @@ export default function App() {
                 <GlobalQuranMindMap onSelectSurah={handleOpenMindMap} onNavigateToMushaf={handleNavigateToMushaf} />
               )}
 
-              {currentView === 'site-map' && <SiteMap current={activeItem?.id as SiteMapTarget} onGo={goTo} />}
+              {currentView === 'site-map' && <SiteMap current={activeItem?.id as SiteMapTarget} onGo={goTo} onStartTour={startTour} />}
 
               {currentView === 'test-word-reveal' && (
                 <WordRevealTest
@@ -441,6 +511,13 @@ export default function App() {
         onOpenAyah={handleOpenAyah}
         commands={paletteCommands}
       />
+
+      {/* Guided tour (above the drawer, palette and ayah modal) */}
+      {touring && (
+        <Suspense fallback={null}>
+          <GuidedTour onStep={handleTourStep} onEnd={endTour} />
+        </Suspense>
+      )}
 
       {/* Interactive Ayah Modal */}
       <AyahDetailModal

@@ -1,5 +1,5 @@
 import React from 'react';
-import { ChevronLeft, MapPin } from 'lucide-react';
+import { ChevronLeft, MapPin, Route } from 'lucide-react';
 
 /** Ids the shell understands (see `goTo` in App.tsx). */
 export type SiteMapTarget =
@@ -62,6 +62,7 @@ const TREE: Node[] = [
 
 const OVERLAYS: Node[] = [
   { label: 'البحث السريع', desc: 'Ctrl + K من أي شاشة: سور، صفحات، آيات، وأقسام التطبيق' },
+  { label: 'الجولة التعريفية', desc: 'زر «جولة» في الأطلس أو من القائمة: تشرح كل الأدوات والصفحات بنوافذ توضيحية' },
   { label: 'خريطة الموقع', desc: 'هذه الصفحة', target: 'site-map' },
 ];
 
@@ -69,9 +70,10 @@ interface Props {
   /** Id of the current screen, to mark "you are here". */
   current: SiteMapTarget;
   onGo: (target: SiteMapTarget) => void;
+  onStartTour?: () => void;
 }
 
-export const SiteMap: React.FC<Props> = ({ current, onGo }) => {
+export const SiteMap: React.FC<Props> = ({ current, onGo, onStartTour }) => {
   const renderNode = (n: Node, depth = 0): React.ReactNode => {
     const here = n.target === current;
     const body = (
@@ -117,6 +119,15 @@ export const SiteMap: React.FC<Props> = ({ current, onGo }) => {
         <header>
           <h1 className="text-2xl sm:text-3xl font-black text-amber-300">خريطة الموقع</h1>
           <p className="text-slate-300 text-sm sm:text-base mt-1">كل شاشات «زد» وكيف ترتبط ببعضها. اضغط أي بطاقة للانتقال إليها.</p>
+          {onStartTour && (
+            <button
+              type="button"
+              onClick={onStartTour}
+              className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-sky-500/40 bg-sky-500/10 text-sky-200 hover:bg-sky-500/20 text-sm font-bold"
+            >
+              <Route className="w-4 h-4" /> ابدأ جولة تعريفية تمرّ على كل الشاشات
+            </button>
+          )}
         </header>
 
         <section aria-label="الشاشات">
