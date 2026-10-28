@@ -81,7 +81,19 @@ export type ReciterId =
   | 'ar.minshawi'
   | 'ar.hudhaify'
   | 'ar.abdulbasitmujawwad'
-  | 'ar.minshawimujawwad';
+  | 'ar.minshawimujawwad'
+  | 'ar.abdulbasitmurattal'
+  | 'ar.alijaber'
+  | 'ar.mahermuaiqly'
+  | 'ar.abdurrahmaansudais'
+  | 'ar.saoodshuraym'
+  | 'ar.abdullahbasfar'
+  | 'ar.hanirifai'
+  | 'ar.muhammadayyoub'
+  | 'ar.muhammadjibreel'
+  | 'ar.shaatree'
+  | 'ar.yasserdussary'
+  | 'ar.nasserqatami';
 
 export interface Reciter {
   id: ReciterId;

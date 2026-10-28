@@ -10,6 +10,18 @@ export const RECITERS: Reciter[] = [
   { id: 'ar.hudhaify', name: 'Ali Al-Hudhaify', arabicName: 'علي بن عبد الرحمن الحذيفي', serverUrl: 'https://cdn.islamic.network/quran/audio/128/ar.hudhaify' },
   { id: 'ar.abdulbasitmujawwad', name: 'Abdul Basit Abdus-Samad (Mujawwad)', arabicName: 'عبد الباسط عبد الصمد (مجوّد)', serverUrl: 'https://everyayah.com/data/Abdul_Basit_Mujawwad_128kbps', everyAyahFolder: 'Abdul_Basit_Mujawwad_128kbps' },
   { id: 'ar.minshawimujawwad', name: 'Mohamed Siddiq El-Minshawi (Mujawwad)', arabicName: 'محمد صديق المنشاوي (مجوّد)', serverUrl: 'https://everyayah.com/data/Minshawy_Mujawwad_192kbps', everyAyahFolder: 'Minshawy_Mujawwad_192kbps' },
+  { id: 'ar.abdulbasitmurattal', name: 'Abdul Basit Abdus-Samad (Murattal)', arabicName: 'عبد الباسط عبد الصمد (مرتّل)', serverUrl: 'https://everyayah.com/data/Abdul_Basit_Murattal_192kbps', everyAyahFolder: 'Abdul_Basit_Murattal_192kbps' },
+  { id: 'ar.alijaber', name: 'Ali Jaber', arabicName: 'علي جابر', serverUrl: 'https://everyayah.com/data/Ali_Jaber_64kbps', everyAyahFolder: 'Ali_Jaber_64kbps' },
+  { id: 'ar.mahermuaiqly', name: 'Maher Al-Muaiqly', arabicName: 'ماهر المعيقلي', serverUrl: 'https://everyayah.com/data/MaherAlMuaiqly128kbps', everyAyahFolder: 'MaherAlMuaiqly128kbps' },
+  { id: 'ar.abdurrahmaansudais', name: 'Abdurrahman As-Sudais', arabicName: 'عبد الرحمن السديس', serverUrl: 'https://everyayah.com/data/Abdurrahmaan_As-Sudais_192kbps', everyAyahFolder: 'Abdurrahmaan_As-Sudais_192kbps' },
+  { id: 'ar.saoodshuraym', name: "Saud Ash-Shuraym", arabicName: 'سعود الشريم', serverUrl: 'https://everyayah.com/data/Saood_ash-Shuraym_128kbps', everyAyahFolder: 'Saood_ash-Shuraym_128kbps' },
+  { id: 'ar.abdullahbasfar', name: 'Abdullah Basfar', arabicName: 'عبد الله بصفر', serverUrl: 'https://everyayah.com/data/Abdullah_Basfar_192kbps', everyAyahFolder: 'Abdullah_Basfar_192kbps' },
+  { id: 'ar.hanirifai', name: 'Hani Ar-Rifai', arabicName: 'هاني الرفاعي', serverUrl: 'https://everyayah.com/data/Hani_Rifai_192kbps', everyAyahFolder: 'Hani_Rifai_192kbps' },
+  { id: 'ar.muhammadayyoub', name: 'Muhammad Ayyoub', arabicName: 'محمد أيوب', serverUrl: 'https://everyayah.com/data/Muhammad_Ayyoub_128kbps', everyAyahFolder: 'Muhammad_Ayyoub_128kbps' },
+  { id: 'ar.muhammadjibreel', name: 'Muhammad Jibreel', arabicName: 'محمد جبريل', serverUrl: 'https://everyayah.com/data/Muhammad_Jibreel_128kbps', everyAyahFolder: 'Muhammad_Jibreel_128kbps' },
+  { id: 'ar.shaatree', name: 'Abu Bakr Ash-Shaatree', arabicName: 'أبو بكر الشاطري', serverUrl: 'https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps', everyAyahFolder: 'Abu_Bakr_Ash-Shaatree_128kbps' },
+  { id: 'ar.yasserdussary', name: 'Yasser Ad-Dussary', arabicName: 'ياسر الدوسري', serverUrl: 'https://everyayah.com/data/Yasser_Ad-Dussary_128kbps', everyAyahFolder: 'Yasser_Ad-Dussary_128kbps' },
+  { id: 'ar.nasserqatami', name: 'Nasser Al-Qatami', arabicName: 'ناصر القطامي', serverUrl: 'https://everyayah.com/data/Nasser_Alqatami_128kbps', everyAyahFolder: 'Nasser_Alqatami_128kbps' },
 ];
 
 // Offline fallback with REAL text for page 1 (Al-Fatihah) and page 2 (start of Al-Baqarah).
