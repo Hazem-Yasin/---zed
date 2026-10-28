@@ -699,7 +699,7 @@ export class GlobeEngine {
     const fromP = this.camera.position.clone();
     const fromT = this.controls.target.clone();
     const toT = node.pos.clone();
-    const camDist = sec.radius * 2.25;
+    const camDist = sec.radius * 2.4;
     const toP = node.pos.clone().add(new THREE.Vector3(0, camDist * 0.15, camDist));
 
     this.controls.enabled = false;
@@ -715,19 +715,19 @@ export class GlobeEngine {
       sec.group.scale.setScalar(1);
       this.mode = 'section';
       this.controls.enabled = true;
-      this.controls.minDistance = Math.max(15, sec.radius * 0.35);
+      this.controls.minDistance = Math.max(15, sec.radius * 0.45);
       this.controls.maxDistance = sec.radius * 4.8;
       this.controls.autoRotate = true;
       this.controls.autoRotateSpeed = 0.28;
       this.cb.onModeChange('section', node.meta.number, branchIndex);
       this.updateListeningVisuals();
 
-      // If playing an ayah in this newly entered section, frame it immediately:
+      // If playing an ayah in this newly entered section, frame it immediately at a zoomed-out distance:
       if (this.listenSurah === node.meta.number && this.listenPlaying) {
         const p = sec.pickables.find((x) => x.kind === 'ayah' && x.ayah === this.listenAyah);
         if (p) {
           const ayahDir = p.local.clone().normalize();
-          const frameCamDist = sec.radius * 1.95;
+          const frameCamDist = sec.radius * 2.4;
           const frameToP = node.pos.clone().add(ayahDir.multiplyScalar(frameCamDist));
           this.flyCamera(frameToP, node.pos.clone(), 0.9);
         }
@@ -800,7 +800,7 @@ export class GlobeEngine {
       this.flyCamera(toP, sc.node.pos.clone(), 1.1);
     } else if (this.mode === 'section' && this.current && this.sectionScene) {
       const sec = this.sectionScene;
-      const camDist = sec.radius * 2.2;
+      const camDist = sec.radius * 2.4;
       const toP = this.current.node.pos.clone().add(new THREE.Vector3(0, camDist * 0.18, camDist));
       this.flyCamera(toP, this.current.node.pos.clone(), 1.1);
     }
@@ -889,7 +889,7 @@ export class GlobeEngine {
             if (p) {
               const secNode = this.sectionScene.node;
               const ayahDir = p.local.clone().normalize();
-              const camDist = this.sectionScene.radius * 2.0;
+              const camDist = this.sectionScene.radius * 2.4;
               const toP = secNode.pos.clone().add(ayahDir.multiplyScalar(camDist));
               const toT = secNode.pos.clone();
               this.flyCamera(toP, toT, 0.9);
@@ -929,7 +929,7 @@ export class GlobeEngine {
         if (p) {
           const node = this.sectionScene.node;
           const ayahDir = p.local.clone().normalize();
-          const camDist = this.sectionScene.radius * 1.85;
+          const camDist = this.sectionScene.radius * 2.4;
           const toP = node.pos.clone().add(ayahDir.multiplyScalar(camDist));
           const toT = node.pos.clone();
           this.flyCamera(toP, toT, 1.2);
@@ -1053,7 +1053,7 @@ export class GlobeEngine {
             p.label.el.style.background = 'rgba(20, 24, 48, 0.96)';
             p.label.el.style.color = '#fde68a';
             p.label.el.style.transform = `scale(${1.12 + 0.06 * this.listenPulse})`;
-            p.label.el.style.zIndex = '40';
+            p.label.el.style.zIndex = '100';
           } else {
             p.label.el.style.border = `1px solid ${bColor}`;
             p.label.el.style.boxShadow = '0 2px 8px rgba(0,0,0,0.5)';
@@ -1112,7 +1112,7 @@ export class GlobeEngine {
             p.label.el.style.boxShadow = '0 0 28px rgba(245, 158, 11, 0.9), inset 0 0 12px rgba(245, 158, 11, 0.4)';
             p.label.el.style.background = 'rgba(18, 22, 48, 0.98)';
             p.label.el.style.transform = `scale(${1.14 + 0.06 * this.listenPulse})`;
-            p.label.el.style.zIndex = '50';
+            p.label.el.style.zIndex = '100';
             const badge = p.label.el.querySelector('span');
             if (badge) {
               badge.style.background = 'rgba(245, 158, 11, 0.45)';
@@ -2756,21 +2756,12 @@ export class GlobeEngine {
       if (this.mode === 'globe') this.setHoverNode(null);
       else if (this.mode === 'surah' || this.mode === 'section') this.setHoverPickable(null);
     }
-    // While the camera follows a recited ayah inside its constellation, don't spin it away from the centre of the view.
-    const followingAyah =
-      this.mode === 'section' &&
-      this.followCamera &&
-      this.listenPlaying &&
-      this.sectionScene?.node.meta.number === this.listenSurah &&
-      this.listenAyah >= this.sectionScene.startAyah &&
-      this.listenAyah <= this.sectionScene.endAyah;
     this.controls.autoRotate =
       (this.mode === 'globe' || this.mode === 'surah' || this.mode === 'section') &&
       !this.hoverNode &&
       !this.hoverPick &&
       !this.dragging &&
-      !followingAyah &&
-      !(this.mode === 'globe' && (this.listenPlaying || (this.compareNodes[0] && this.compareNodes[1])));
+      !(this.compareNodes[0] && this.compareNodes[1]);
 
     this.controls.update();
     this.renderer.render(this.scene, this.camera);
@@ -2827,27 +2818,33 @@ export class GlobeEngine {
         op = clamp01((l.parent.scale.x - 0.4) / 0.6);
       }
 
+      const isHoveredSatellite = this.hoverPick?.label === l;
+      const isListeningSurah =
+        (this.mode === 'globe' && l.node && this.listenSurah === l.node.meta.number && (this.listenPlaying || this.listenSurah !== null)) ||
+        (this.mode === 'surah' && this.current && this.listenSurah === this.current.node.meta.number && (this.listenPlaying || this.listenSurah !== null));
+
+      const isListeningAyah =
+        (this.mode === 'section' && this.sectionScene && this.listenSurah === this.sectionScene.node.meta.number &&
+         this.sectionScene.pickables.some((p) => p.label === l && p.kind === 'ayah' && p.ayah === this.listenAyah && (this.listenPlaying || this.listenSurah !== null))) ||
+        (this.mode === 'surah' && this.current && this.listenSurah === this.current.node.meta.number &&
+         this.current.pickables.some((p) => p.label === l && p.kind === 'branch' && p.branchIndex !== undefined &&
+           this.current?.res && this.current.res[this.listenAyah - 1]?.branch === p.branchIndex && (this.listenPlaying || this.listenSurah !== null)));
+
+      // The recited / highlighted ayah or surah must stay visible even when it has rotated to the back of the sphere.
+      if (isListeningAyah || isListeningSurah) {
+        scale = Math.max(scale, 1.15 + (this.listenPulse > 0 ? 0.08 * this.listenPulse : 0));
+        op = Math.max(op, 0.98);
+      }
+
       v.project(this.camera);
-      if (v.z > 1 || op < 0.02) {
+      if ((v.z > 1 && !isListeningAyah && !isListeningSurah) || op < 0.02) {
         l.el.style.opacity = '0';
         continue;
       }
       const x = (v.x * 0.5 + 0.5) * this.width;
       const y = (-v.y * 0.5 + 0.5) * this.height;
       l.el.style.opacity = String(op);
-
-      const isHoveredSatellite = this.hoverPick?.label === l;
-      const isListeningAyah =
-        (this.mode === 'section' && this.sectionScene && this.listenSurah === this.sectionScene.node.meta.number &&
-         this.sectionScene.pickables.some((p) => p.label === l && p.kind === 'ayah' && p.ayah === this.listenAyah && this.listenPlaying)) ||
-        (this.mode === 'surah' && this.current && this.listenSurah === this.current.node.meta.number &&
-         this.current.pickables.some((p) => p.label === l && p.kind === 'branch' && p.branchIndex !== undefined &&
-           this.current?.res && this.current.res[this.listenAyah - 1]?.branch === p.branchIndex && this.listenPlaying));
-
-      if (isListeningAyah) {
-        scale = Math.max(scale, 1.15 + (this.listenPulse > 0 ? 0.08 * this.listenPulse : 0));
-        op = Math.max(op, 0.95);
-      }
+      l.el.style.zIndex = isListeningAyah ? '100' : isHoveredSatellite ? '50' : '';
 
       // Following a recited ayah: show its whole text (any length) so the user can read along without overlap.
       if (l.kind === 'section') {
@@ -2861,7 +2858,7 @@ export class GlobeEngine {
             const full = pk?.info.ayahText;
             if (full) txtEl.textContent = full;
             txtEl.style.cssText += ';display:block;-webkit-line-clamp:unset;overflow:visible;max-width:min(460px,80vw);font-size:16px;line-height:1.8;text-align:center;';
-            l.el.style.zIndex = '5';
+            l.el.style.zIndex = '100';
           } else {
             const full = pk?.info.ayahText;
             if (full) txtEl.textContent = full.length > 55 ? full.slice(0, 52) + '…' : full;
