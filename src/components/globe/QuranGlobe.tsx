@@ -5,7 +5,7 @@ import { soundEffects } from '../../services/soundEffects';
 import { getCachedAyah, fetchSurahAllAyahs } from '../../services/quranApi';
 import { ListenState, surahPlayer } from '../../services/surahPlayer';
 import { hideSplash } from '../../splash';
-import { ListeningDock } from './ListeningDock';
+import { globeBridge } from '../../services/globeBridge';
 import { SurahComparePanel } from './SurahComparePanel';
 import {
   GlobeEngine,
@@ -50,6 +50,8 @@ interface QuranGlobeProps {
   onOpenMindMap: (surahNumber: number) => void;
   onNavigateToMushaf: (pageNumber: number) => void;
   onStartQuiz: (scope: QuizScope) => void;
+  /** Whether the camera follows the recited ayah (owned by App so the always-present dock can toggle it). */
+  followCamera: boolean;
   /** Starts the guided tour (adds a button to the dock and to the first-run tips). */
   onStartTour?: () => void;
   /** True while the guided tour is running (hides the first-run tips). */
@@ -62,7 +64,7 @@ const LEVELS: { id: GlobeLevel; label: string; hint: string; icon: React.ReactNo
   { id: 'ayat', label: 'الآيات', hint: 'توزيع الآيات ونصوصها', icon: <Dot className="w-4 h-4" /> },
 ];
 
-export const QuranGlobe: React.FC<QuranGlobeProps> = ({ onOpenAyah, onOpenMindMap, onNavigateToMushaf, onStartQuiz, onStartTour, touring }) => {
+export const QuranGlobe: React.FC<QuranGlobeProps> = ({ onOpenAyah, onOpenMindMap, onNavigateToMushaf, onStartQuiz, onStartTour, touring, followCamera }) => {
   const hostRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<GlobeEngine | null>(null);
   const cbRef = useRef<{ onOpenAyah: QuranGlobeProps['onOpenAyah']; onPickSurah: (n: number) => void }>({
@@ -87,7 +89,6 @@ export const QuranGlobe: React.FC<QuranGlobeProps> = ({ onOpenAyah, onOpenMindMa
 
   // listening + compare tools
   const [listen, setListen] = useState<ListenState>(surahPlayer.getState());
-  const [followCamera, setFollowCamera] = usePersistentState<boolean>('globe-follow-camera', true);
   const [compareOpen, setCompareOpen] = useState(false);
   const [cmpA, setCmpA] = useState<number | null>(null);
   const [cmpB, setCmpB] = useState<number | null>(null);
@@ -199,7 +200,7 @@ export const QuranGlobe: React.FC<QuranGlobeProps> = ({ onOpenAyah, onOpenMindMa
     });
     return () => {
       unsub();
-      surahPlayer.stop(); // the dock lives here, so don't leave audio playing with no controls
+      engineRef.current?.setListening(null, false);
     };
   }, []);
 
@@ -231,6 +232,19 @@ export const QuranGlobe: React.FC<QuranGlobeProps> = ({ onOpenAyah, onOpenMindMa
     surahPlayer.startAtAyah(surahNumber, ayah);
     engineRef.current?.navigateDeepToAyah(surahNumber, branchIndex, ayah);
   };
+
+  // Expose the globe-aware actions to the app-level dock while the globe is open.
+  const handlersRef = useRef({ handleShuffle, handleNavigateAyah, handleNavigateMehwar });
+  handlersRef.current = { handleShuffle, handleNavigateAyah, handleNavigateMehwar };
+  useEffect(
+    () =>
+      globeBridge.register({
+        shuffle: () => handlersRef.current.handleShuffle(),
+        navigateAyah: (s, a) => handlersRef.current.handleNavigateAyah(s, a),
+        navigateMehwar: (s, b) => handlersRef.current.handleNavigateMehwar(s, b),
+      }),
+    []
+  );
 
   // Compare mode: picking, rings and arc on the globe.
   useEffect(() => {
@@ -562,18 +576,6 @@ export const QuranGlobe: React.FC<QuranGlobeProps> = ({ onOpenAyah, onOpenMindMa
           </p>
         </div>
       )}
-
-      {/* ---------------- listening dock (all views) ---------------- */}
-      <ListeningDock
-        state={listen}
-        followCamera={followCamera}
-        onToggleFollowCamera={setFollowCamera}
-        onShuffle={handleShuffle}
-        onNavigateAyah={handleNavigateAyah}
-        onNavigateMehwar={handleNavigateMehwar}
-        onOpenMindMap={onOpenMindMap}
-        onNavigateToMushaf={onNavigateToMushaf}
-      />
 
       {/* ---------------- compare panel (outer globe only) ---------------- */}
       {compareOpen && !inSurah && !inSection && (

@@ -702,7 +702,7 @@ export class GlobeEngine {
     this.controls.enabled = false;
     this.controls.autoRotate = false;
 
-    this.startAnim(1.5, (k) => {
+    this.startAnim(1.2, (k) => {
       this.camera.position.lerpVectors(fromP, toP, k);
       this.controls.target.lerpVectors(fromT, toT, k);
       sc.group.scale.setScalar(Math.max(0.001, 1 - smooth(0, 0.8, k)));
@@ -718,6 +718,17 @@ export class GlobeEngine {
       this.controls.autoRotateSpeed = 0.28;
       this.cb.onModeChange('section', node.meta.number, branchIndex);
       this.updateListeningVisuals();
+
+      // If playing an ayah in this newly entered section, frame it immediately:
+      if (this.listenSurah === node.meta.number && this.listenPlaying) {
+        const p = sec.pickables.find((x) => x.kind === 'ayah' && x.ayah === this.listenAyah);
+        if (p) {
+          const ayahDir = p.local.clone().normalize();
+          const frameCamDist = sec.radius * 1.95;
+          const frameToP = node.pos.clone().add(ayahDir.multiplyScalar(frameCamDist));
+          this.flyCamera(frameToP, node.pos.clone(), 0.9);
+        }
+      }
     });
   }
 
@@ -821,13 +832,9 @@ export class GlobeEngine {
 
   private findBranchForAyah(surahNumber: number, ayahNumber: number): number {
     const map = getSurahMindMap(surahNumber);
-    if (map.branches) {
-      for (let i = 0; i < map.branches.length; i++) {
-        const r = map.branches[i].ayahRange;
-        if (r && ayahNumber >= r.start && ayahNumber <= r.end) {
-          return i;
-        }
-      }
+    const res = resolveAyahs(map);
+    if (res && res[ayahNumber - 1]) {
+      return res[ayahNumber - 1].branch;
     }
     return 0;
   }
@@ -850,14 +857,8 @@ export class GlobeEngine {
       this.listenPulse = 1;
       this.spawnRipple();
       if (this.followCamera && surah !== null) {
-        if (this.mode === 'globe') {
-          this.focusDirection(node.normal, 230, 330);
-        } else if (this.mode === 'surah') {
-          this.enterSurah(surah);
-        } else if (this.mode === 'section') {
-          const targetBranch = this.findBranchForAyah(surah, ayah);
-          this.navigateDeepToAyah(surah, targetBranch, ayah);
-        }
+        const targetBranch = this.findBranchForAyah(surah, ayah);
+        this.navigateDeepToAyah(surah, targetBranch, ayah);
       }
     } else if (ayahChanged && playing) {
       this.listenPulse = 1;
@@ -881,14 +882,10 @@ export class GlobeEngine {
           }
         } else if (this.mode === 'surah' && this.current && this.current.node.meta.number === surah) {
           const targetBranch = this.findBranchForAyah(surah, ayah);
-          const bp = this.current.branchPos[targetBranch];
-          if (bp) {
-            const sc = this.current;
-            const dir = bp.clone().normalize();
-            const toP = sc.node.pos.clone().add(dir.multiplyScalar(sc.extent * 2.0));
-            const toT = sc.node.pos.clone();
-            this.flyCamera(toP, toT, 1.1);
-          }
+          this.enterSection(targetBranch);
+        } else if (this.mode === 'globe') {
+          const targetBranch = this.findBranchForAyah(surah, ayah);
+          this.navigateDeepToAyah(surah, targetBranch, ayah);
         }
       }
     }
@@ -926,16 +923,26 @@ export class GlobeEngine {
       }
     };
 
+    // Mid-transition inside this same surah (e.g. follow mode already started entering a section):
+    // don't tear the scene down, wait for it to settle and then retry.
+    const transitional = this.mode === 'entering' || this.mode === 'entering_section' || this.mode === 'leaving_section';
+    if (transitional && this.current?.node.meta.number === surahNumber) {
+      this.waitFor(
+        () => this.mode === 'surah' || this.mode === 'section',
+        () => this.navigateDeepToAyah(surahNumber, branchIndex, ayahNumber, onComplete)
+      );
+      return;
+    }
+
     // If already in the exact section constellation
     if (this.mode === 'section' && this.sectionScene?.node.meta.number === surahNumber && this.sectionScene?.branchIndex === branchIndex) {
       executeFinalStep();
       return;
     }
 
-    // If already in the surah scene
-    if (this.mode === 'surah' && this.current?.node.meta.number === surahNumber) {
+    // If in the surah or section scene of the same surah
+    if ((this.mode === 'surah' || this.mode === 'section') && this.current?.node.meta.number === surahNumber) {
       this.enterSection(branchIndex);
-      setTimeout(executeFinalStep, 1600);
       return;
     }
 
@@ -953,23 +960,37 @@ export class GlobeEngine {
     // Step 1: Smoothly rotate globe towards surah
     this.focusDirection(node.normal, 230, 330);
 
-    // Step 2: Enter Surah
+    // Step 2: Enter Surah, Step 3: Enter Section, Step 4: Frame the ayah.
+    // Each step waits for the previous animation to really finish, so slow frame rates can't skip a step.
     setTimeout(() => {
       if (this.disposed) return;
       this.enterSurah(surahNumber);
-
-      // Step 3: Enter Section
-      setTimeout(() => {
-        if (this.disposed) return;
-        this.enterSection(branchIndex);
-
-        // Step 4: Frame and illuminate Ayah
-        setTimeout(() => {
-          if (this.disposed) return;
-          executeFinalStep();
-        }, 1600);
-      }, 2500);
+      this.waitFor(
+        () => this.mode === 'surah' && this.current?.node.meta.number === surahNumber,
+        () => {
+          this.enterSection(branchIndex);
+          this.waitFor(
+            () => this.mode === 'section' && this.sectionScene?.branchIndex === branchIndex,
+            () => executeFinalStep()
+          );
+        }
+      );
     }, 700);
+  }
+
+  /** Polls until `ready()` is true (or gives up), then runs `then`. Stops if the engine is disposed. */
+  private waitFor(ready: () => boolean, then: () => void, maxMs = 15000) {
+    const t0 = performance.now();
+    const id = window.setInterval(() => {
+      if (this.disposed) {
+        window.clearInterval(id);
+      } else if (ready()) {
+        window.clearInterval(id);
+        then();
+      } else if (performance.now() - t0 > maxMs) {
+        window.clearInterval(id);
+      }
+    }, 80);
   }
 
   private updateListeningVisuals() {
@@ -2182,8 +2203,11 @@ export class GlobeEngine {
           if (item?.textUthmani) {
             p.info.ayahText = item.textUthmani;
             const snip = item.textUthmani.length > 55 ? item.textUthmani.slice(0, 52) + '…' : item.textUthmani;
-            const txtEl = p.label.el.querySelector('.ayah-txt');
-            if (txtEl) txtEl.textContent = snip;
+            const txtEl = p.label.el.querySelector<HTMLElement>('.ayah-txt');
+            if (txtEl) {
+              txtEl.textContent = snip;
+              txtEl.dataset.exp = '0'; // text was reset to the snippet; let the frame loop re-expand if needed
+            }
           }
         }
       });
@@ -2792,9 +2816,50 @@ export class GlobeEngine {
         scale = Math.max(scale, 1.15 + (this.listenPulse > 0 ? 0.08 * this.listenPulse : 0));
         op = Math.max(op, 0.95);
       }
+
+      // Following a recited ayah: show its whole text (any length) so the user can read along without overlap.
+      if (l.kind === 'section') {
+        const sec = this.sectionScene;
+        const expand = isListeningAyah && this.followCamera && this.mode === 'section' && !!sec;
+        const txtEl = l.el.querySelector<HTMLElement>('.ayah-txt');
+        if (txtEl && (txtEl.dataset.exp === '1') !== expand) {
+          txtEl.dataset.exp = expand ? '1' : '0';
+          const pk = sec?.pickables.find((p) => p.label === l);
+          if (expand) {
+            const full = pk?.info.ayahText;
+            if (full) txtEl.textContent = full;
+            txtEl.style.cssText += ';display:block;-webkit-line-clamp:unset;overflow:visible;max-width:min(460px,80vw);font-size:16px;line-height:1.8;text-align:center;';
+            l.el.style.zIndex = '5';
+          } else {
+            const full = pk?.info.ayahText;
+            if (full) txtEl.textContent = full.length > 55 ? full.slice(0, 52) + '…' : full;
+            txtEl.style.display = '-webkit-box';
+            txtEl.style.webkitLineClamp = '2';
+            txtEl.style.overflow = 'hidden';
+            txtEl.style.maxWidth = '';
+            txtEl.style.fontSize = '';
+            txtEl.style.lineHeight = '';
+            txtEl.style.textAlign = '';
+            l.el.style.zIndex = '';
+            l.el.style.transformOrigin = '';
+          }
+        }
+      }
       if (isHoveredSatellite) scale = 1.32;
 
-      l.el.style.transform = `translate(${x.toFixed(1)}px,${(y + l.offsetY).toFixed(1)}px) translate(-50%,0) scale(${scale})`;
+      let top = y + l.offsetY;
+      if (l.kind === 'section' && l.el.querySelector<HTMLElement>('.ayah-txt')?.dataset.exp === '1') {
+        // Expanded (followed) ayah: keep the whole card inside the free band between the header and the bottom buttons.
+        const topMargin = 84;
+        const bottomMargin = 120;
+        const avail = Math.max(120, this.height - topMargin - bottomMargin);
+        const h = l.el.offsetHeight || 1;
+        scale = Math.min(1, avail / h);
+        l.el.style.transformOrigin = '50% 0';
+        top = Math.min(Math.max(top, topMargin), this.height - bottomMargin - h * scale);
+      }
+
+      l.el.style.transform = `translate(${x.toFixed(1)}px,${top.toFixed(1)}px) translate(-50%,0) scale(${scale})`;
     }
   }
 }

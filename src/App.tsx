@@ -6,10 +6,11 @@ import { SiteMap, SiteMapTarget } from './components/ui/SiteMap';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
 import { HomeScreen } from './components/home/HomeScreen';
 import { AyahDetailModal } from './components/ayah-sheet/AyahDetailModal';
+import { ListeningDock, DockInset } from './components/globe/ListeningDock';
 import { SURAHS_LIST } from './data/surahs';
 import { usePersistentState } from './hooks/usePersistentState';
-import { getAyahAudioUrl, fetchSurahAyahRange } from './services/quranApi';
-import { globalAudio } from './services/audioManager';
+import { fetchSurahAyahRange } from './services/quranApi';
+import { surahPlayer, ListenState } from './services/surahPlayer';
 import { library } from './services/library';
 import { tourBus, DEFAULT_GLOBE } from './services/tourBus';
 import type { TourStep } from './components/tour/tourSteps';
@@ -74,7 +75,18 @@ export default function App() {
 
   // Interactive Ayah Sheet Modal state
   const [selectedAyah, setSelectedAyah] = useState<Ayah | null>(null);
-  const [isModalAudioPlaying, setIsModalAudioPlaying] = useState<boolean>(false);
+  // The audio player lives at app level so it survives modal/view changes. Its state drives the modal's play button too.
+  const [listen, setListen] = useState<ListenState>(surahPlayer.getState());
+  const [followCamera, setFollowCamera] = usePersistentState<boolean>('globe-follow-camera', true);
+  useEffect(() => surahPlayer.subscribe((s) => setListen(s)), []);
+  // Space taken by the docked player: the page is laid out beside/above it instead of being covered.
+  const [dockInset, setDockInset] = useState<DockInset>({ left: 0, bottom: 0 });
+  const handleInsetChange = React.useCallback(
+    (n: DockInset) => setDockInset((p) => (p.left === n.left && p.bottom === n.bottom ? p : n)),
+    []
+  );
+  const isModalAudioPlaying =
+    !!selectedAyah && listen.active && listen.playing && listen.surah === selectedAyah.surahNumber && listen.ayah === selectedAyah.numberInSurah;
 
   // Sliding menu drawer — closed by default so the first thing the user sees is the globe
   const [menuOpen, setMenuOpen] = useState<boolean>(false);
@@ -102,14 +114,6 @@ export default function App() {
   useEffect(() => {
     if (currentView === 'mushaf' && !touring) library.setLastRead(currentPage);
   }, [currentView, currentPage, touring]);
-
-  // Listen to global audio
-  useEffect(() => {
-    const unsub = globalAudio.subscribe((playingId) => {
-      setIsModalAudioPlaying(playingId?.startsWith('modal-') || false);
-    });
-    return () => unsub();
-  }, []);
 
   // Ctrl/Cmd+K opens quick search from every screen; Escape closes the menu drawer
   useEffect(() => {
@@ -223,17 +227,11 @@ export default function App() {
     setCurrentView(step.view);
   };
 
-  // Play audio in Modal with Global AudioManager
+  // The modal plays through the shared surah player, so audio keeps going (and stays controllable
+  // from the dock) after the modal closes.
   const handlePlayModalAudio = (ayah: Ayah) => {
-    const id = `modal-${ayah.numberInQuran}`;
-    if (globalAudio.isPlaying(id)) {
-      globalAudio.stop();
-      setIsModalAudioPlaying(false);
-      return;
-    }
-    const url = getAyahAudioUrl(ayah.numberInQuran);
-    globalAudio.play(id, url, () => setIsModalAudioPlaying(false));
-    setIsModalAudioPlaying(true);
+    if (isModalAudioPlaying) surahPlayer.pause();
+    else surahPlayer.startAtAyah(ayah.surahNumber, ayah.numberInSurah);
   };
 
   /* ---- navigation config (shared by the sliding menu, the site map and the palette) ---- */
@@ -309,7 +307,11 @@ export default function App() {
   );
 
   return (
-    <div className="flex h-[100dvh] w-screen overflow-hidden bg-slate-950 font-cairo text-slate-100" dir="rtl">
+    <div
+      className="flex h-[100dvh] w-screen overflow-hidden bg-slate-950 font-cairo text-slate-100"
+      style={{ paddingLeft: dockInset.left, paddingBottom: dockInset.bottom }}
+      dir="rtl"
+    >
       {/* Sliding menu: hidden until asked for, so the globe is the first thing on screen */}
       <div
         className={`fixed inset-0 z-[60] bg-slate-950/60 backdrop-blur-[2px] transition-opacity duration-200 ${
@@ -436,6 +438,7 @@ export default function App() {
                   onOpenMindMap={handleOpenMindMap}
                   onNavigateToMushaf={handleNavigateToMushaf}
                   onStartQuiz={handleStartQuiz}
+                  followCamera={followCamera}
                   onStartTour={startTour}
                   touring={touring}
                 />
@@ -519,12 +522,23 @@ export default function App() {
         </Suspense>
       )}
 
+      {/* Audio player: always present on every screen, docked or floating, resizable */}
+      <ListeningDock
+        state={listen}
+        followCamera={followCamera}
+        onToggleFollowCamera={setFollowCamera}
+        onInsetChange={handleInsetChange}
+        onOpenMindMap={handleOpenMindMap}
+        onNavigateToMushaf={handleNavigateToMushaf}
+      />
+
       {/* Interactive Ayah Modal */}
       <AyahDetailModal
         ayah={selectedAyah}
         onClose={() => setSelectedAyah(null)}
         onPlayAudio={handlePlayModalAudio}
         isPlaying={isModalAudioPlaying}
+        inset={dockInset}
         onOpenMindMap={handleOpenMindMap}
         onStartWordRevealTest={handleStartWordRevealTest}
       />

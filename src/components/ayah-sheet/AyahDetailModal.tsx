@@ -11,6 +11,8 @@ interface AyahDetailModalProps {
   isPlaying: boolean;
   onOpenMindMap: (surahNumber: number) => void;
   onStartWordRevealTest: (ayah: Ayah) => void;
+  /** Space taken by the docked audio player; the modal is centred in what is left. */
+  inset?: { left: number; bottom: number };
 }
 
 export const AyahDetailModal: React.FC<AyahDetailModalProps> = ({
@@ -20,6 +22,7 @@ export const AyahDetailModal: React.FC<AyahDetailModalProps> = ({
   isPlaying,
   onOpenMindMap,
   onStartWordRevealTest,
+  inset,
 }) => {
   const closeRef = useRef<HTMLButtonElement>(null);
   const onCloseRef = useRef(onClose);
@@ -85,7 +88,11 @@ export const AyahDetailModal: React.FC<AyahDetailModalProps> = ({
   if (!ayah) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in"
+      style={{ paddingLeft: 16 + (inset?.left ?? 0), paddingBottom: 16 + (inset?.bottom ?? 0) }}
+      onClick={onClose}
+    >
       <div 
         role="dialog"
         aria-modal="true"
