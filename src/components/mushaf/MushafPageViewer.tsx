@@ -210,7 +210,7 @@ export const MushafPageViewer: React.FC<MushafPageViewerProps> = ({
   return (
     <div className="flex flex-col h-full bg-slate-950 text-slate-100 select-none overflow-hidden" dir="rtl">
       {/* Top Mushaf Controls Bar */}
-      <header className="bg-slate-900 border-b border-amber-500/20 px-3 sm:px-4 py-2 flex flex-wrap items-center justify-between gap-2 shrink-0 z-30">
+      <header data-tour="mushaf-bar" className="bg-slate-900 border-b border-amber-500/20 px-3 sm:px-4 py-2 flex flex-wrap items-center justify-between gap-2 shrink-0 z-30">
         {/* Navigation & Surah Info */}
         <div className="flex items-center gap-2 sm:gap-3">
           <div className="flex items-center gap-1 bg-slate-800 rounded-xl p-0.5 border border-slate-700">
@@ -538,7 +538,7 @@ export const MushafPageViewer: React.FC<MushafPageViewerProps> = ({
         </main>
 
         {/* LEFT PANEL: Ayah Quick Tafsir, Audio Reciter & Memorization Jump */}
-        <aside className="hidden lg:flex flex-col w-72 bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shrink-0 justify-between">
+        <aside data-tour="ayah-panel" className="hidden lg:flex flex-col w-72 bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shrink-0 justify-between">
           <div className="space-y-3">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <span className="font-bold text-xs text-amber-300">بيانات الآية المحددة</span>

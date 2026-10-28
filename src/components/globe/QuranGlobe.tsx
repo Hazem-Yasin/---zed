@@ -18,6 +18,7 @@ import {
   MEDINAN_HEX,
 } from './globeEngine';
 import { QuizScope } from '../../types';
+import { tourBus, GlobeState } from '../../services/tourBus';
 import { ActionButton, Chip, Segmented } from '../ui/kit';
 import { FirstRunHint } from '../ui/FirstRunHint';
 import { usePersistentState } from '../../hooks/usePersistentState';
@@ -49,6 +50,10 @@ interface QuranGlobeProps {
   onOpenMindMap: (surahNumber: number) => void;
   onNavigateToMushaf: (pageNumber: number) => void;
   onStartQuiz: (scope: QuizScope) => void;
+  /** Starts the guided tour (adds a button to the dock and to the first-run tips). */
+  onStartTour?: () => void;
+  /** True while the guided tour is running (hides the first-run tips). */
+  touring?: boolean;
 }
 
 const LEVELS: { id: GlobeLevel; label: string; hint: string; icon: React.ReactNode }[] = [
@@ -57,7 +62,7 @@ const LEVELS: { id: GlobeLevel; label: string; hint: string; icon: React.ReactNo
   { id: 'ayat', label: 'الآيات', hint: 'توزيع الآيات ونصوصها', icon: <Dot className="w-4 h-4" /> },
 ];
 
-export const QuranGlobe: React.FC<QuranGlobeProps> = ({ onOpenAyah, onOpenMindMap, onNavigateToMushaf, onStartQuiz }) => {
+export const QuranGlobe: React.FC<QuranGlobeProps> = ({ onOpenAyah, onOpenMindMap, onNavigateToMushaf, onStartQuiz, onStartTour, touring }) => {
   const hostRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<GlobeEngine | null>(null);
   const cbRef = useRef<{ onOpenAyah: QuranGlobeProps['onOpenAyah']; onPickSurah: (n: number) => void }>({
@@ -97,6 +102,33 @@ export const QuranGlobe: React.FC<QuranGlobeProps> = ({ onOpenAyah, onOpenMindMa
     }
   };
 
+  // Guided tour: where the tour wants the camera (null when no tour is steering) and where the engine is now.
+  const wantRef = useRef<GlobeState['place'] | null>(null);
+  const curRef = useRef<{ surah: number | null; branch: number | null }>({ surah: null, branch: null });
+  const viewRef = useRef({ level, filter });
+  viewRef.current = { level, filter };
+
+  /** Takes the next single step toward `wantRef` (enter / leave one level); called again after each camera flight. */
+  const pump = () => {
+    const eng = engineRef.current;
+    const want = wantRef.current;
+    if (!eng || !want) return;
+    const m = eng.getMode();
+    const cur = curRef.current;
+    if (m === 'globe') {
+      if (want.surah !== null) eng.enterSurah(want.surah);
+      else wantRef.current = null;
+    } else if (m === 'surah') {
+      if (want.surah !== cur.surah) eng.leaveSurah();
+      else if (want.section !== undefined) eng.enterSection(want.section);
+    } else if (m === 'section') {
+      if (want.surah !== cur.surah || want.section === undefined) eng.leaveSection();
+      else if (want.section !== cur.branch) eng.enterSection(want.section);
+    }
+  };
+  const pumpRef = useRef(pump);
+  pumpRef.current = pump;
+
   useEffect(() => {
     if (!hostRef.current) return;
     let engine: GlobeEngine;
@@ -106,6 +138,10 @@ export const QuranGlobe: React.FC<QuranGlobeProps> = ({ onOpenAyah, onOpenMindMa
         onHoverItem: setHoverItem,
         onModeChange: (m, s, b) => {
           setMode(m);
+          if (m === 'globe') curRef.current = { surah: null, branch: null };
+          else if (m === 'surah') curRef.current = { surah: s, branch: null };
+          else if (m === 'section') curRef.current = { surah: s, branch: b ?? 0 };
+          if (wantRef.current) setTimeout(() => pumpRef.current(), 60);
           if (m === 'entering' || m === 'surah' || m === 'section' || m === 'entering_section') {
             setActiveSurah(s);
           }
@@ -167,6 +203,48 @@ export const QuranGlobe: React.FC<QuranGlobeProps> = ({ onOpenAyah, onOpenMindMa
     engineRef.current?.setPickMode(compareOpen);
     engineRef.current?.setCompare(compareOpen ? cmpA : null, compareOpen ? cmpB : null);
   }, [compareOpen, cmpA, cmpB]);
+
+  // Guided tour: each step describes the whole globe screen; "restore" gives the user their own settings back.
+  useEffect(
+    () =>
+      tourBus.subscribe((cmd) => {
+        const eng = engineRef.current;
+        if (cmd.type === 'restore') {
+          eng?.previewSurah(null);
+          setQuery('');
+          setViewMenuOpen(false);
+          setCompareOpen(false);
+          setCmpA(null);
+          setCmpB(null);
+          if (surahPlayer.getState().active) surahPlayer.stop();
+          if (tourBus.saved) {
+            setLevel(tourBus.saved.level);
+            setFilter(tourBus.saved.filter);
+            tourBus.saved = null;
+          }
+          wantRef.current = { surah: null };
+          pumpRef.current();
+          return;
+        }
+        const s = cmd.s;
+        if (!tourBus.saved) tourBus.saved = { ...viewRef.current };
+        setLevel(s.view.level);
+        setFilter(s.view.filter);
+        setViewMenuOpen(s.view.menu);
+        setQuery(s.search);
+        setCompareOpen(!!s.compare);
+        setCmpA(s.compare?.a ?? null);
+        setCmpB(s.compare?.b ?? null);
+        eng?.previewSurah(s.place.surah === null ? s.preview : null);
+        const st = surahPlayer.getState();
+        if (s.listen !== null) {
+          if (!(st.active && st.surah === s.listen)) surahPlayer.start(s.listen);
+        } else if (st.active) surahPlayer.stop();
+        wantRef.current = s.place;
+        pumpRef.current();
+      }),
+    []
+  );
 
   // Synchronously or asynchronously resolve ayah text when an ayah is hovered
   useEffect(() => {
@@ -234,7 +312,7 @@ export const QuranGlobe: React.FC<QuranGlobeProps> = ({ onOpenAyah, onOpenMindMa
         </div>
       )}
 
-      {engineReady && !inSurah && !inSection && <FirstRunHint />}
+      {engineReady && !inSurah && !inSection && !touring && <FirstRunHint onStartTour={onStartTour} />}
 
       {webglFailed && (
         <div className="absolute inset-0 flex items-center justify-center text-slate-300 text-sm p-8 text-center">
@@ -268,6 +346,7 @@ export const QuranGlobe: React.FC<QuranGlobeProps> = ({ onOpenAyah, onOpenMindMa
         <div className="flex items-center gap-2 pointer-events-auto">
           <button
             type="button"
+            data-tour="sound"
             onClick={toggleSound}
             aria-label={soundMuted ? 'تفعيل أصوات الرياح والتنقل' : 'كتم أصوات الرياح'}
             aria-pressed={!soundMuted}
@@ -277,7 +356,7 @@ export const QuranGlobe: React.FC<QuranGlobeProps> = ({ onOpenAyah, onOpenMindMa
             {soundMuted ? <VolumeX className="w-4 h-4 text-slate-400" /> : <Volume2 className="w-4 h-4 text-amber-400 animate-pulse" />}
           </button>
 
-          <div className="relative w-48 sm:w-72">
+          <div data-tour="search" className="relative w-48 sm:w-72">
             <div className={`${glass} rounded-2xl flex items-center gap-2 px-3 py-2`}>
               <Search className="w-4 h-4 text-slate-400 shrink-0" />
               <input
@@ -333,6 +412,7 @@ export const QuranGlobe: React.FC<QuranGlobeProps> = ({ onOpenAyah, onOpenMindMa
         <div className="absolute bottom-4 inset-x-0 flex flex-col items-center gap-2 px-3 z-10 pointer-events-none">
           <div className="relative flex items-center justify-center gap-2 pointer-events-auto">
             <ActionButton
+              data-tour="dock-listen"
               tone="sky"
               on={listen.active}
               onClick={() => (listen.active ? surahPlayer.stop() : surahPlayer.start(1))}
@@ -356,6 +436,7 @@ export const QuranGlobe: React.FC<QuranGlobeProps> = ({ onOpenAyah, onOpenMindMa
             </ActionButton>
 
             <ActionButton
+              data-tour="dock-quiz"
               tone="emerald"
               onClick={() => onStartQuiz({ label: 'القرآن الكريم كاملاً' })}
               title="اختبر نفسك في القرآن كاملاً"
@@ -365,9 +446,23 @@ export const QuranGlobe: React.FC<QuranGlobeProps> = ({ onOpenAyah, onOpenMindMa
               اختبار
             </ActionButton>
 
+            {onStartTour && (
+              <ActionButton
+                tone="slate"
+                onClick={onStartTour}
+                aria-label="ابدأ الجولة التعريفية"
+                title="جولة تعريفية تشرح كل أدوات الأطلس وصفحات الموقع"
+                icon={<Compass className="w-4 h-4" />}
+                className={glass}
+              >
+                <span className="hidden sm:inline">جولة</span>
+              </ActionButton>
+            )}
+
             <span className="w-px h-6 bg-slate-700/70" aria-hidden />
 
             <ActionButton
+              data-tour="dock-view"
               tone="amber"
               on={viewMenuOpen}
               onClick={() => setViewMenuOpen((v) => !v)}
@@ -387,6 +482,7 @@ export const QuranGlobe: React.FC<QuranGlobeProps> = ({ onOpenAyah, onOpenMindMa
                 <div className="fixed inset-0 z-10 bg-slate-950/40 sm:bg-transparent" onClick={() => setViewMenuOpen(false)} aria-hidden />
                 <div
                   role="dialog"
+                  data-tour="view-menu"
                   aria-label="طريقة العرض والتصفية"
                   className="glass-panel-strong z-20 fixed inset-x-0 bottom-0 rounded-t-3xl p-4 pb-6 animate-sheet-up sm:absolute sm:inset-x-auto sm:bottom-full sm:mb-2 sm:right-0 sm:w-80 sm:rounded-2xl sm:pb-4"
                 >
@@ -452,6 +548,7 @@ export const QuranGlobe: React.FC<QuranGlobeProps> = ({ onOpenAyah, onOpenMindMa
       {/* ---------------- surah & ayah hover card (globe) ---------------- */}
       {!inSurah && !inSection && hoverMeta && hoverMap && (
         <div
+          data-tour="hover-card"
           className={`${glass} absolute top-20 right-3 w-72 sm:w-80 rounded-2xl p-4 z-10 pointer-events-none animate-fade-in border-amber-500/30`}
         >
           {/* Header */}
@@ -547,7 +644,7 @@ export const QuranGlobe: React.FC<QuranGlobeProps> = ({ onOpenAyah, onOpenMindMa
               <span>العودة إلى الكرة</span>
             </button>
 
-            <div className={`${glass} rounded-2xl p-3 w-64 overflow-y-auto`}>
+            <div data-tour="surah-panel" className={`${glass} rounded-2xl p-3 w-64 overflow-y-auto`}>
               <div className="text-xs font-bold text-amber-300 mb-2 flex items-center justify-between">
                 <span className="flex items-center gap-1.5"><Layers className="w-3.5 h-3.5" /> محاور السورة</span>
                 <span className="text-xs text-slate-400">اضغط لدخول فلك الآيات</span>
@@ -575,7 +672,7 @@ export const QuranGlobe: React.FC<QuranGlobeProps> = ({ onOpenAyah, onOpenMindMa
           </div>
 
           <div className="absolute bottom-4 inset-x-0 flex justify-center px-3 z-10 pointer-events-none">
-            <div className="flex flex-wrap items-center justify-center gap-2 pointer-events-auto">
+            <div data-tour="surah-tools" className="flex flex-wrap items-center justify-center gap-2 pointer-events-auto">
               <button
                 onClick={() => engineRef.current?.resetSurahView()}
                 className={`${glass} rounded-2xl px-3 py-2 flex items-center gap-1.5 text-xs font-bold text-slate-200 hover:bg-slate-900/90`}
@@ -658,7 +755,7 @@ export const QuranGlobe: React.FC<QuranGlobeProps> = ({ onOpenAyah, onOpenMindMa
             </button>
 
             {/* Topic Switcher Bar */}
-            <div className={`${glass} rounded-2xl p-3 w-64 overflow-y-auto`}>
+            <div data-tour="section-panel" className={`${glass} rounded-2xl p-3 w-64 overflow-y-auto`}>
               <div className="text-xs font-bold text-amber-300 mb-2 flex items-center justify-between">
                 <span className="flex items-center gap-1.5"><Compass className="w-3.5 h-3.5" /> فلك الآيات</span>
                 <span className="text-xs text-slate-400">
@@ -696,7 +793,7 @@ export const QuranGlobe: React.FC<QuranGlobeProps> = ({ onOpenAyah, onOpenMindMa
 
           {/* Section Navigation & Mushaf / Reset Controls */}
           <div className="absolute bottom-4 inset-x-0 flex flex-col items-center gap-2 px-3 z-10 pointer-events-none">
-            <div className="flex flex-wrap items-center justify-center gap-2 pointer-events-auto">
+            <div data-tour="section-tools" className="flex flex-wrap items-center justify-center gap-2 pointer-events-auto">
               <button
                 onClick={() => engineRef.current?.prevSection()}
                 title="المحور السابق"

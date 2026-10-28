@@ -334,7 +334,7 @@ export const WordRevealTest: React.FC<WordRevealTestProps> = ({
         </div>
 
         {/* Action Controls (Duolingo Style Buttons) */}
-        <div className="mt-8 w-full max-w-2xl grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div data-tour="reveal-buttons" className="mt-8 w-full max-w-2xl grid grid-cols-1 sm:grid-cols-3 gap-4">
           {/* Button 1: Reveal Next Letter */}
           <button
             onClick={handleRevealNextLetter}

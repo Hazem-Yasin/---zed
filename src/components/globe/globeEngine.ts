@@ -478,6 +478,8 @@ export class GlobeEngine {
   private downT = 0;
 
   private hoverNode: SurahNode | null = null;
+  /** Surah whose hover card is held open by the guided tour (overrides the mouse). */
+  private pinnedNode: SurahNode | null = null;
   private hoverStart = 0;
   private hoverSatellites: Pickable[] = [];
   private hoverSatellite: Pickable | null = null;
@@ -786,6 +788,13 @@ export class GlobeEngine {
 
   getMode(): GlobeMode {
     return this.mode;
+  }
+
+  /** Guided tour: hold a surah's hover card open without the mouse (null releases it). Outer globe only. */
+  previewSurah(surahNumber: number | null) {
+    this.pinnedNode = surahNumber ? this.nodes[surahNumber - 1] ?? null : null;
+    if (!this.pinnedNode && this.mode === 'globe') this.setHoverNode(null);
+    if (this.pinnedNode) this.focusDirection(this.pinnedNode.normal, 230, 330);
   }
 
   /* --------------------- listening / compare public API --------------------- */
@@ -2413,7 +2422,9 @@ export class GlobeEngine {
       this.hoverGroup.scale.setScalar(Math.max(0.001, 1 - Math.pow(1 - k, 3)));
     }
 
-    if (!this.dragging && this.mouse.inside && !this.anim) this.updateHover();
+    if (this.pinnedNode && this.mode === 'globe') {
+      if (this.hoverNode !== this.pinnedNode) this.setHoverNode(this.pinnedNode);
+    } else if (!this.dragging && this.mouse.inside && !this.anim) this.updateHover();
     else if (!this.mouse.inside && !this.dragging) {
       if (this.mode === 'globe') this.setHoverNode(null);
       else if (this.mode === 'surah' || this.mode === 'section') this.setHoverPickable(null);

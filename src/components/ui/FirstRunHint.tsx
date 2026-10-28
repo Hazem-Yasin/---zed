@@ -1,9 +1,9 @@
 import React from 'react';
-import { Hand, MousePointerClick, Search, X } from 'lucide-react';
+import { Compass, Hand, MousePointerClick, Search, X } from 'lucide-react';
 import { usePersistentState } from '../../hooks/usePersistentState';
 
 /** One-time, dismissible tips card shown over the globe on the very first visit. */
-export const FirstRunHint: React.FC = () => {
+export const FirstRunHint: React.FC<{ onStartTour?: () => void }> = ({ onStartTour }) => {
   const [seen, setSeen] = usePersistentState<boolean>('hint-globe-seen', false, (v) => typeof v === 'boolean');
   if (seen) return null;
 
@@ -41,13 +41,27 @@ export const FirstRunHint: React.FC = () => {
             </span>
           </li>
         </ul>
-        <button
-          type="button"
-          onClick={() => setSeen(true)}
-          className="mt-3 w-full py-2 rounded-xl bg-amber-500 text-slate-950 text-xs font-black hover:bg-amber-400"
-        >
-          فهمت
-        </button>
+        <div className="mt-3 flex gap-2">
+          <button
+            type="button"
+            onClick={() => setSeen(true)}
+            className="flex-1 py-2 rounded-xl bg-amber-500 text-slate-950 text-xs font-black hover:bg-amber-400"
+          >
+            فهمت
+          </button>
+          {onStartTour && (
+            <button
+              type="button"
+              onClick={() => {
+                setSeen(true);
+                onStartTour();
+              }}
+              className="flex-1 py-2 rounded-xl border border-sky-500/50 text-sky-300 text-xs font-black hover:bg-sky-500/10 flex items-center justify-center gap-1.5"
+            >
+              <Compass className="w-3.5 h-3.5" /> ابدأ الجولة
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

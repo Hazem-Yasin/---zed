@@ -239,6 +239,7 @@ export const SurahComparePanel: React.FC<Props> = ({ a, b, onChange, onClose }) 
   return (
     <div
       role="region"
+      data-tour="compare-panel"
       aria-label="مقارنة سورتين"
       className="absolute top-20 left-3 z-20 w-[min(92%,22rem)] max-h-[calc(100%-9.5rem)] flex flex-col rounded-2xl glass-panel-strong animate-fade-in"
       dir="rtl"

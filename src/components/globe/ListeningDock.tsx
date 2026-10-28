@@ -30,6 +30,7 @@ export const ListeningDock: React.FC<Props> = ({ state }) => {
   return (
     <div
       role="region"
+      data-tour="listen-dock"
       aria-label="مشغّل التلاوة"
       className="absolute top-[4.6rem] left-1/2 -translate-x-1/2 z-20 w-[min(94%,31rem)] rounded-2xl bg-slate-950/85 backdrop-blur-md border shadow-xl px-3.5 py-2.5 animate-fade-in"
       style={{ borderColor: `${accent}66`, boxShadow: `0 0 28px ${accent}22` }}
