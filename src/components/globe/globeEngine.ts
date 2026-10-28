@@ -503,6 +503,7 @@ export class GlobeEngine {
   private listenPlaying = false;
   private listenPulse = 0;
   private ripples: { sprite: THREE.Sprite; age: number }[] = [];
+  private followCamera = true;
 
   // pick / compare
   private pickMode = false;
@@ -809,7 +810,29 @@ export class GlobeEngine {
     this.pickMode = on;
   }
 
-  /** Mark which surah is being recited. Pass null to stop. Flies the camera to a newly-listened surah. */
+  /** Enables or disables automatic camera tracking following the recited Ayah and Surah */
+  setFollowCamera(enabled: boolean) {
+    this.followCamera = enabled;
+  }
+
+  getFollowCamera(): boolean {
+    return this.followCamera;
+  }
+
+  private findBranchForAyah(surahNumber: number, ayahNumber: number): number {
+    const map = getSurahMindMap(surahNumber);
+    if (map.branches) {
+      for (let i = 0; i < map.branches.length; i++) {
+        const r = map.branches[i].ayahRange;
+        if (r && ayahNumber >= r.start && ayahNumber <= r.end) {
+          return i;
+        }
+      }
+    }
+    return 0;
+  }
+
+  /** Mark which surah and ayah is being recited. Pass null to stop. Flies the camera when follow mode is on. */
   setListening(surah: number | null, playing: boolean, ayah: number = 1) {
     const node = surah ? this.nodes[surah - 1] ?? null : null;
     const surahChanged = node !== this.listenNode;
@@ -826,9 +849,48 @@ export class GlobeEngine {
     if (surahChanged && node) {
       this.listenPulse = 1;
       this.spawnRipple();
-      this.focusDirection(node.normal, 230, 330);
+      if (this.followCamera && surah !== null) {
+        if (this.mode === 'globe') {
+          this.focusDirection(node.normal, 230, 330);
+        } else if (this.mode === 'surah') {
+          this.enterSurah(surah);
+        } else if (this.mode === 'section') {
+          const targetBranch = this.findBranchForAyah(surah, ayah);
+          this.navigateDeepToAyah(surah, targetBranch, ayah);
+        }
+      }
     } else if (ayahChanged && playing) {
       this.listenPulse = 1;
+      if (this.followCamera && !this.dragging && surah !== null) {
+        if (this.mode === 'section' && this.sectionScene && this.sectionScene.node.meta.number === surah) {
+          if (ayah >= this.sectionScene.startAyah && ayah <= this.sectionScene.endAyah) {
+            // Same section constellation: smoothly swing camera to center and frame this active ayah
+            const p = this.sectionScene.pickables.find((x) => x.kind === 'ayah' && x.ayah === ayah);
+            if (p) {
+              const secNode = this.sectionScene.node;
+              const ayahDir = p.local.clone().normalize();
+              const camDist = this.sectionScene.radius * 2.0;
+              const toP = secNode.pos.clone().add(ayahDir.multiplyScalar(camDist));
+              const toT = secNode.pos.clone();
+              this.flyCamera(toP, toT, 0.9);
+            }
+          } else {
+            // Ayah rolled over to the next section in this surah
+            const targetBranch = this.findBranchForAyah(surah, ayah);
+            this.enterSection(targetBranch);
+          }
+        } else if (this.mode === 'surah' && this.current && this.current.node.meta.number === surah) {
+          const targetBranch = this.findBranchForAyah(surah, ayah);
+          const bp = this.current.branchPos[targetBranch];
+          if (bp) {
+            const sc = this.current;
+            const dir = bp.clone().normalize();
+            const toP = sc.node.pos.clone().add(dir.multiplyScalar(sc.extent * 2.0));
+            const toT = sc.node.pos.clone();
+            this.flyCamera(toP, toT, 1.1);
+          }
+        }
+      }
     }
 
     this.updateListeningVisuals();
@@ -2719,6 +2781,17 @@ export class GlobeEngine {
       l.el.style.opacity = String(op);
 
       const isHoveredSatellite = this.hoverPick?.label === l;
+      const isListeningAyah =
+        (this.mode === 'section' && this.sectionScene && this.listenSurah === this.sectionScene.node.meta.number &&
+         this.sectionScene.pickables.some((p) => p.label === l && p.kind === 'ayah' && p.ayah === this.listenAyah && this.listenPlaying)) ||
+        (this.mode === 'surah' && this.current && this.listenSurah === this.current.node.meta.number &&
+         this.current.pickables.some((p) => p.label === l && p.kind === 'branch' && p.branchIndex !== undefined &&
+           this.current?.res && this.current.res[this.listenAyah - 1]?.branch === p.branchIndex && this.listenPlaying));
+
+      if (isListeningAyah) {
+        scale = Math.max(scale, 1.15 + (this.listenPulse > 0 ? 0.08 * this.listenPulse : 0));
+        op = Math.max(op, 0.95);
+      }
       if (isHoveredSatellite) scale = 1.32;
 
       l.el.style.transform = `translate(${x.toFixed(1)}px,${(y + l.offsetY).toFixed(1)}px) translate(-50%,0) scale(${scale})`;

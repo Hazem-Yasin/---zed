@@ -22,6 +22,7 @@ import {
   ChevronUp,
   Volume2,
   BookOpen,
+  Compass,
 } from 'lucide-react';
 import { SURAHS_LIST } from '../../data/surahs';
 import { getSurahMindMap } from '../../data/mindmaps/mindmapData';
@@ -34,6 +35,8 @@ import { usePersistentState } from '../../hooks/usePersistentState';
 
 interface Props {
   state: ListenState;
+  followCamera?: boolean;
+  onToggleFollowCamera?: (enabled: boolean) => void;
   onShuffle?: () => void;
   onNavigateAyah?: (surahNumber: number, ayahNumber: number) => void;
   onNavigateMehwar?: (surahNumber: number, branchIndex: number) => void;
@@ -49,6 +52,8 @@ const ERROR_TEXT: Record<Exclude<ListenError, null>, { icon: React.ReactNode; te
 
 export const ListeningDock: React.FC<Props> = ({
   state,
+  followCamera = true,
+  onToggleFollowCamera,
   onShuffle,
   onNavigateAyah,
   onNavigateMehwar,
@@ -407,6 +412,24 @@ export const ListeningDock: React.FC<Props> = ({
                   </span>
                   <span className={`w-2 h-2 rounded-full ${state.autoNext ? 'bg-amber-400 shadow-[0_0_8px_#f59e0b]' : 'bg-slate-600'}`} />
                 </button>
+
+                {/* Follow Camera Switch */}
+                <button
+                  type="button"
+                  onClick={() => onToggleFollowCamera?.(!followCamera)}
+                  aria-pressed={followCamera}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold border transition-colors ${
+                    followCamera
+                      ? 'bg-amber-500/15 text-amber-300 border-amber-500/40'
+                      : 'bg-slate-950/70 text-slate-400 border-slate-800'
+                  }`}
+                >
+                  <span className="flex items-center gap-1.5">
+                    <Compass className={`w-3.5 h-3.5 ${followCamera ? 'text-amber-400' : 'text-slate-500'}`} />
+                    <span>تتبع الكاميرا للآية والسورة (تحريك الشاشة تلقائياً)</span>
+                  </span>
+                  <span className={`w-2 h-2 rounded-full ${followCamera ? 'bg-amber-400 shadow-[0_0_8px_#f59e0b]' : 'bg-slate-600'}`} />
+                </button>
               </div>
 
               {/* Shuffle Big Button */}
@@ -695,6 +718,22 @@ export const ListeningDock: React.FC<Props> = ({
             >
               <Repeat className="w-3 h-3" />
               <span className="hidden md:inline">تلقائي</span>
+            </button>
+
+            {/* Follow Camera Toggle */}
+            <button
+              type="button"
+              onClick={() => onToggleFollowCamera?.(!followCamera)}
+              aria-pressed={followCamera}
+              title={followCamera ? 'تتبع الكاميرا للآية والسورة: مفعّل (اضغط للإيقاف)' : 'تتبع الكاميرا للآية والسورة: متوقف (اضغط للتفعيل)'}
+              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold border transition-all ${
+                followCamera
+                  ? 'bg-amber-500/15 text-amber-300 border-amber-500/40 shadow-[0_0_8px_rgba(245,158,11,0.2)]'
+                  : 'bg-slate-900 text-slate-400 border-slate-700 hover:text-slate-200'
+              }`}
+            >
+              <Compass className={`w-3.5 h-3.5 ${followCamera ? 'text-amber-400' : 'text-slate-500'}`} />
+              <span className="hidden sm:inline">{followCamera ? 'تتبع: شغال' : 'تتبع: متوقف'}</span>
             </button>
 
             <select

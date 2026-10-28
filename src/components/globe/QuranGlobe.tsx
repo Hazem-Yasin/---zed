@@ -87,6 +87,7 @@ export const QuranGlobe: React.FC<QuranGlobeProps> = ({ onOpenAyah, onOpenMindMa
 
   // listening + compare tools
   const [listen, setListen] = useState<ListenState>(surahPlayer.getState());
+  const [followCamera, setFollowCamera] = usePersistentState<boolean>('globe-follow-camera', true);
   const [compareOpen, setCompareOpen] = useState(false);
   const [cmpA, setCmpA] = useState<number | null>(null);
   const [cmpB, setCmpB] = useState<number | null>(null);
@@ -183,6 +184,7 @@ export const QuranGlobe: React.FC<QuranGlobeProps> = ({ onOpenAyah, onOpenMindMa
 
   useEffect(() => engineRef.current?.setLevel(level), [level]);
   useEffect(() => engineRef.current?.setFilter(filter), [filter]);
+  useEffect(() => engineRef.current?.setFollowCamera(followCamera), [followCamera]);
 
   // Listening mode: mirror the player into React state and drive the node pulse.
   useEffect(() => {
@@ -564,6 +566,8 @@ export const QuranGlobe: React.FC<QuranGlobeProps> = ({ onOpenAyah, onOpenMindMa
       {/* ---------------- listening dock (all views) ---------------- */}
       <ListeningDock
         state={listen}
+        followCamera={followCamera}
+        onToggleFollowCamera={setFollowCamera}
         onShuffle={handleShuffle}
         onNavigateAyah={handleNavigateAyah}
         onNavigateMehwar={handleNavigateMehwar}
