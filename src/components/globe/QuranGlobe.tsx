@@ -258,7 +258,7 @@ export const QuranGlobe: React.FC<QuranGlobeProps> = ({ onOpenAyah, onOpenMindMa
       tourBus.subscribe((cmd) => {
         const eng = engineRef.current;
         if (cmd.type === 'restore') {
-          eng?.previewSurah(null);
+          eng?.previewSurah(null, false);
           setQuery('');
           setViewMenuOpen(false);
           setCompareOpen(false);
@@ -283,7 +283,7 @@ export const QuranGlobe: React.FC<QuranGlobeProps> = ({ onOpenAyah, onOpenMindMa
         setCompareOpen(!!s.compare);
         setCmpA(s.compare?.a ?? null);
         setCmpB(s.compare?.b ?? null);
-        eng?.previewSurah(s.place.surah === null ? s.preview : null);
+        eng?.previewSurah(s.place.surah === null ? s.preview : null, s.overview);
         const st = surahPlayer.getState();
         if (s.listen !== null) {
           if (!(st.active && st.surah === s.listen)) surahPlayer.start(s.listen);

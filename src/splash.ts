@@ -13,6 +13,15 @@ export function hideSplash() {
   hidden = true;
   const el = document.getElementById('splash');
   if (!el) return;
+  // Finish the loading bar: freeze it where it is, then run it to 100%.
+  const fill = el.querySelector<HTMLElement>('.splash-bar-fill');
+  if (fill) {
+    fill.style.width = `${fill.getBoundingClientRect().width}px`;
+    fill.style.animation = 'none';
+    void fill.offsetWidth; // commit the frozen width so the transition starts from it
+    fill.style.transition = 'width 0.35s ease-out';
+    fill.style.width = '100%';
+  }
   const wait = Math.max(0, MIN_VISIBLE_MS - performance.now());
   window.setTimeout(() => {
     el.classList.add('splash-out');

@@ -31,7 +31,13 @@ const typeAr = (t: 'Meccan' | 'Medinan') => (t === 'Meccan' ? 'مكية' : 'مد
 /** Arabic count agreement for "ayah". */
 const ayahCount = (n: number) => (n === 1 ? 'آية واحدة' : n === 2 ? 'آيتان' : n <= 10 ? `${n} آيات` : `${n} آية`);
 
-const globe = (g: Partial<GlobeState>): GlobeState => ({ ...DEFAULT_GLOBE, ...g, view: { ...DEFAULT_GLOBE.view, ...g.view } });
+/** Outer-globe steps are shown zoomed far out (so the panels do not cover the globe); inside a surah the camera frames it itself. */
+const globe = (g: Partial<GlobeState>): GlobeState => ({
+  ...DEFAULT_GLOBE,
+  overview: (g.place ?? DEFAULT_GLOBE.place).surah === null,
+  ...g,
+  view: { ...DEFAULT_GLOBE.view, ...g.view },
+});
 
 function sectionOf(surah: number, index: number): NonNullable<TourStep['sectionMap']> {
   const b = getSurahMindMap(surah).branches[index];

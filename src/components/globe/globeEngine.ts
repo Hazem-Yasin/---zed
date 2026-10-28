@@ -471,6 +471,8 @@ export class GlobeEngine {
   private mode: GlobeMode = 'globe';
   private anim: Anim | null = null;
   private defaultDist = 330;
+  /** Guided tour: view the whole globe from far away so the screen panels do not cover it. */
+  private overview = false;
 
   private mouse = { x: -9999, y: -9999, inside: false };
   private dragging = false;
@@ -547,9 +549,9 @@ export class GlobeEngine {
     this.buildSatellites();
 
     this.handleResize();
-    this.applyGlobeLimits();
     const aspectBoost = this.width / this.height < 1 ? Math.min(2.2, (1 / (this.width / this.height)) * 0.9) : 1;
     this.defaultDist = 330 * aspectBoost;
+    this.applyGlobeLimits();
     this.camera.position.set(0, this.defaultDist * 0.2, this.defaultDist);
     this.controls.update();
 
@@ -645,8 +647,9 @@ export class GlobeEngine {
     const from = this.camera.position.clone();
     const fromT = this.controls.target.clone();
     const toT = new THREE.Vector3();
-    const toP = node.normal.clone().multiplyScalar(this.defaultDist);
-    toP.y += this.defaultDist * 0.15;
+    const backDist = this.overview ? this.overviewDist() : this.defaultDist;
+    const toP = node.normal.clone().multiplyScalar(backDist);
+    toP.y += backDist * 0.15;
 
     this.controls.enabled = false;
     this.controls.minDistance = 0;
@@ -807,11 +810,27 @@ export class GlobeEngine {
     return this.mode;
   }
 
-  /** Guided tour: hold a surah's hover card open without the mouse (null releases it). Outer globe only. */
-  previewSurah(surahNumber: number | null) {
+  /**
+   * Guided tour: hold a surah's hover card open without the mouse (null releases it).
+   * `overview` pulls the camera far back to see the whole globe (outer globe only; remembered for when we return to it).
+   */
+  previewSurah(surahNumber: number | null, overview = false) {
+    const changed = overview !== this.overview;
+    this.overview = overview;
     this.pinnedNode = surahNumber ? this.nodes[surahNumber - 1] ?? null : null;
     if (!this.pinnedNode && this.mode === 'globe') this.setHoverNode(null);
-    if (this.pinnedNode) this.focusDirection(this.pinnedNode.normal, 230, 330);
+    if (this.mode !== 'globe') return;
+    const dist = overview ? this.overviewDist() : null;
+    if (this.pinnedNode) {
+      this.focusDirection(this.pinnedNode.normal, dist ?? 230, dist ?? 330, true);
+    } else if (changed) {
+      const target = dist ?? this.defaultDist;
+      this.focusDirection(this.camera.position.clone(), target, target, true);
+    }
+  }
+
+  private overviewDist() {
+    return this.defaultDist * 1.75;
   }
 
   /* --------------------- listening / compare public API --------------------- */
@@ -2262,14 +2281,14 @@ export class GlobeEngine {
   }
 
   /** Smoothly swing the camera (great-circle) to look at the globe from `dir`, keeping a sensible zoom. */
-  private focusDirection(dir: THREE.Vector3, minDist: number, maxDist: number) {
-    if (this.mode !== 'globe' || this.anim || this.dragging) return;
+  private focusDirection(dir: THREE.Vector3, minDist: number, maxDist: number, force = false) {
+    if (this.mode !== 'globe' || (this.anim && !force) || this.dragging) return;
     const fromP = this.camera.position.clone();
     const fromDist = fromP.length();
     const toDist = Math.min(maxDist, Math.max(minDist, fromDist));
     const fromDir = fromP.clone().normalize();
     const toDir = dir.clone().normalize();
-    if (fromDir.angleTo(toDir) < 0.05) return;
+    if (fromDir.angleTo(toDir) < 0.05 && (!force || Math.abs(toDist - fromDist) < 1)) return;
     const q = new THREE.Quaternion().setFromUnitVectors(fromDir, toDir);
     const ident = new THREE.Quaternion();
     const cur = new THREE.Quaternion();
@@ -2369,7 +2388,7 @@ export class GlobeEngine {
 
   private applyGlobeLimits() {
     this.controls.minDistance = 170;
-    this.controls.maxDistance = 560;
+    this.controls.maxDistance = Math.max(560, this.defaultDist * 2.4);
   }
 
   /* ------------------------------ interaction --------------------------- */

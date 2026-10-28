@@ -62,11 +62,29 @@
         color: #94a3b8;
         letter-spacing: 0.02em;
       }
+      /* Loading bar: creeps toward 90% on its own; src/splash.ts finishes it to 100% when the app is ready. */
+      #splash .splash-bar {
+        width: min(16rem, 70vw);
+        height: 4px;
+        border-radius: 999px;
+        background: rgba(148, 163, 184, 0.2);
+        overflow: hidden;
+        animation: splash-rise 0.9s ease-out 0.3s both;
+      }
+      #splash .splash-bar-fill {
+        height: 100%;
+        width: 0;
+        border-radius: inherit;
+        background: linear-gradient(90deg, #f59e0b, #fcd34d);
+        animation: splash-load 6s cubic-bezier(0.1, 0.6, 0.3, 1) forwards;
+      }
+      @keyframes splash-load { from { width: 0; } to { width: 90%; } }
       @keyframes splash-rise { from { opacity: 0; transform: translateY(8px) scale(0.96); } to { opacity: 1; transform: none; } }
       @keyframes splash-pulse { 0%, 100% { opacity: 0.25; transform: scale(0.97); } 50% { opacity: 0.8; transform: scale(1.03); } }
       @media (prefers-reduced-motion: reduce) {
         #splash { transition-duration: 0.001ms; }
-        #splash .splash-mark img, #splash .splash-mark::before, #splash .splash-ayah { animation: none; }
+        #splash .splash-mark img, #splash .splash-mark::before, #splash .splash-ayah, #splash .splash-bar { animation: none; }
+        #splash .splash-bar-fill { animation: none; width: 40%; }
       }
     </style>
   </head>
@@ -77,6 +95,7 @@
         <p lang="ar">أَوْ زِدْ عَلَيْهِ وَرَتِّلِ ٱلْقُرْءَانَ تَرْتِيلًا</p>
         <small>المزّمّل · ٤</small>
       </div>
+      <div class="splash-bar" role="progressbar" aria-label="جارٍ التحميل"><div class="splash-bar-fill"></div></div>
     </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
