@@ -2361,7 +2361,7 @@ export class GlobeEngine {
     // WebGL lines are always 1px wide, so the arc is a thin tube mesh to make it thick.
     const SEGMENTS = 72;
     const RADIAL = 6;
-    const geo = new THREE.TubeGeometry(curve, SEGMENTS, 1.4, RADIAL, false);
+    const geo = new THREE.TubeGeometry(curve, SEGMENTS, 0.8, RADIAL, false);
     const c1 = new THREE.Color('#38bdf8');
     const c2 = new THREE.Color('#c084fc');
     const colors: number[] = [];
