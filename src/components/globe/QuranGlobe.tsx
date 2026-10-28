@@ -187,19 +187,48 @@ export const QuranGlobe: React.FC<QuranGlobeProps> = ({ onOpenAyah, onOpenMindMa
   // Listening mode: mirror the player into React state and drive the node pulse.
   useEffect(() => {
     const s0 = surahPlayer.getState();
-    engineRef.current?.setListening(s0.active ? s0.surah : null, s0.playing);
+    engineRef.current?.setListening(s0.active ? s0.surah : null, s0.playing, s0.ayah);
     const unsub = surahPlayer.subscribe((s, event) => {
       setListen(s);
       const eng = engineRef.current;
       if (!eng) return;
-      eng.setListening(s.active ? s.surah : null, s.playing);
-      if (event === 'ayah' && s.playing) eng.pulseListening();
+      eng.setListening(s.active ? s.surah : null, s.playing, s.ayah);
+      if ((event === 'ayah' || event === 'surah') && s.playing) eng.pulseListening();
     });
     return () => {
       unsub();
       surahPlayer.stop(); // the dock lives here, so don't leave audio playing with no controls
     };
   }, []);
+
+  const handleShuffle = () => {
+    const pick = surahPlayer.shuffle();
+    engineRef.current?.navigateDeepToAyah(pick.surah, pick.branchIndex, pick.ayah);
+  };
+
+  const handleNavigateAyah = (surahNumber: number, ayahNumber: number) => {
+    const map = getSurahMindMap(surahNumber);
+    let branchIndex = 0;
+    if (map.branches) {
+      for (let i = 0; i < map.branches.length; i++) {
+        const r = map.branches[i].ayahRange;
+        if (r && ayahNumber >= r.start && ayahNumber <= r.end) {
+          branchIndex = i;
+          break;
+        }
+      }
+    }
+    surahPlayer.startAtAyah(surahNumber, ayahNumber);
+    engineRef.current?.navigateDeepToAyah(surahNumber, branchIndex, ayahNumber);
+  };
+
+  const handleNavigateMehwar = (surahNumber: number, branchIndex: number) => {
+    const map = getSurahMindMap(surahNumber);
+    const b = map.branches[branchIndex];
+    const ayah = b?.ayahRange?.start || 1;
+    surahPlayer.startAtAyah(surahNumber, ayah);
+    engineRef.current?.navigateDeepToAyah(surahNumber, branchIndex, ayah);
+  };
 
   // Compare mode: picking, rings and arc on the globe.
   useEffect(() => {
@@ -533,7 +562,14 @@ export const QuranGlobe: React.FC<QuranGlobeProps> = ({ onOpenAyah, onOpenMindMa
       )}
 
       {/* ---------------- listening dock (all views) ---------------- */}
-      <ListeningDock state={listen} />
+      <ListeningDock
+        state={listen}
+        onShuffle={handleShuffle}
+        onNavigateAyah={handleNavigateAyah}
+        onNavigateMehwar={handleNavigateMehwar}
+        onOpenMindMap={onOpenMindMap}
+        onNavigateToMushaf={onNavigateToMushaf}
+      />
 
       {/* ---------------- compare panel (outer globe only) ---------------- */}
       {compareOpen && !inSurah && !inSection && (

@@ -1,4 +1,5 @@
 import { SURAHS_LIST } from '../data/surahs';
+import { getSurahMindMap } from '../data/mindmaps/mindmapData';
 import { getAyahAudioUrl, RECITERS } from './quranApi';
 import { globalAudio } from './audioManager';
 import { readStored, writeStored } from '../hooks/usePersistentState';
@@ -90,12 +91,48 @@ class SurahPlayer {
 
   /* ------------------------------ controls ------------------------------ */
 
-  start(surah: number, reciterId?: string) {
+  start(surah: number, reciterId?: string, startAyah: number = 1) {
     if (surah < 1 || surah > 114) return;
     if (reciterId) this.state = { ...this.state, reciterId };
     this.errorCount = 0;
     this.skipCount = 0;
-    this.playAyah(surah, 1, 'surah');
+    const clampedAyah = Math.max(1, Math.min(startAyah, SURAHS_LIST[surah - 1].totalVerses));
+    this.playAyah(surah, clampedAyah, 'surah');
+  }
+
+  startAtAyah(surah: number, ayah: number, reciterId?: string) {
+    this.start(surah, reciterId, ayah);
+  }
+
+  /** Picks a random Surah, random Mehwar branch, and random Ayah within that branch */
+  pickRandomAyah(): { surah: number; branchIndex: number; ayah: number } {
+    const surah = Math.floor(Math.random() * 114) + 1;
+    const total = SURAHS_LIST[surah - 1].totalVerses;
+    const map = getSurahMindMap(surah);
+    const branches = map.branches && map.branches.length > 0 ? map.branches : null;
+
+    let branchIndex = 0;
+    let ayah = 1;
+
+    if (branches) {
+      branchIndex = Math.floor(Math.random() * branches.length);
+      const b = branches[branchIndex];
+      const start = b.ayahRange?.start || 1;
+      const end = b.ayahRange?.end || total;
+      ayah = Math.floor(Math.random() * (end - start + 1)) + start;
+    } else {
+      ayah = Math.floor(Math.random() * total) + 1;
+    }
+
+    ayah = Math.max(1, Math.min(ayah, total));
+    return { surah, branchIndex, ayah };
+  }
+
+  /** Shuffles and starts playback of a random Ayah, returning its metadata */
+  shuffle(reciterId?: string): { surah: number; branchIndex: number; ayah: number } {
+    const pick = this.pickRandomAyah();
+    this.startAtAyah(pick.surah, pick.ayah, reciterId);
+    return pick;
   }
 
   togglePlay() {

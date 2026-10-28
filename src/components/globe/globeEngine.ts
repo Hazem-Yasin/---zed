@@ -402,6 +402,7 @@ interface SurahScene {
   ayahBase: THREE.Vector3[];
   branchPos: THREE.Vector3[];
   viewDir: THREE.Vector3;
+  res: AyahRes[];
 }
 
 interface SectionScene {
@@ -497,6 +498,8 @@ export class GlobeEngine {
 
   // listening mode
   private listenNode: SurahNode | null = null;
+  private listenSurah: number | null = null;
+  private listenAyah: number = 1;
   private listenPlaying = false;
   private listenPulse = 0;
   private ripples: { sprite: THREE.Sprite; age: number }[] = [];
@@ -624,6 +627,7 @@ export class GlobeEngine {
       this.controls.autoRotate = true;
       this.controls.autoRotateSpeed = 0.35;
       this.cb.onModeChange('surah', surahNumber);
+      this.updateListeningVisuals();
     });
   }
 
@@ -712,6 +716,7 @@ export class GlobeEngine {
       this.controls.autoRotate = true;
       this.controls.autoRotateSpeed = 0.28;
       this.cb.onModeChange('section', node.meta.number, branchIndex);
+      this.updateListeningVisuals();
     });
   }
 
@@ -805,26 +810,231 @@ export class GlobeEngine {
   }
 
   /** Mark which surah is being recited. Pass null to stop. Flies the camera to a newly-listened surah. */
-  setListening(surah: number | null, playing: boolean) {
+  setListening(surah: number | null, playing: boolean, ayah: number = 1) {
     const node = surah ? this.nodes[surah - 1] ?? null : null;
-    const changed = node !== this.listenNode;
-    if (changed && this.listenNode) {
+    const surahChanged = node !== this.listenNode;
+    const ayahChanged = ayah !== this.listenAyah;
+
+    if (surahChanged && this.listenNode) {
       this.listenNode.label.el.style.color = 'rgba(241,245,249,0.92)';
     }
     this.listenNode = node;
+    this.listenSurah = surah;
+    this.listenAyah = ayah;
     this.listenPlaying = playing && !!node;
-    if (changed && node) {
+
+    if (surahChanged && node) {
       this.listenPulse = 1;
       this.spawnRipple();
       this.focusDirection(node.normal, 230, 330);
+    } else if (ayahChanged && playing) {
+      this.listenPulse = 1;
+    }
+
+    this.updateListeningVisuals();
+  }
+
+  /** Called once per recited ayah: a beat on the node, active mahawir/ayah illumination, plus ripples. */
+  pulseListening() {
+    this.listenPulse = 1;
+    if (this.mode === 'globe') {
+      this.spawnRipple();
+    }
+    this.updateListeningVisuals();
+  }
+
+  /** Deep animated camera navigation: flies from Globe -> Surah -> Mehwar -> Ayah with focal highlight */
+  navigateDeepToAyah(surahNumber: number, branchIndex: number, ayahNumber: number, onComplete?: () => void) {
+    const executeFinalStep = () => {
+      if (this.sectionScene && this.sectionScene.node.meta.number === surahNumber && this.sectionScene.branchIndex === branchIndex) {
+        const p = this.sectionScene.pickables.find((x) => x.kind === 'ayah' && x.ayah === ayahNumber);
+        if (p) {
+          const node = this.sectionScene.node;
+          const ayahDir = p.local.clone().normalize();
+          const camDist = this.sectionScene.radius * 1.85;
+          const toP = node.pos.clone().add(ayahDir.multiplyScalar(camDist));
+          const toT = node.pos.clone();
+          this.flyCamera(toP, toT, 1.2);
+          this.pulseListening();
+          onComplete?.();
+        } else {
+          this.pulseListening();
+          onComplete?.();
+        }
+      }
+    };
+
+    // If already in the exact section constellation
+    if (this.mode === 'section' && this.sectionScene?.node.meta.number === surahNumber && this.sectionScene?.branchIndex === branchIndex) {
+      executeFinalStep();
+      return;
+    }
+
+    // If already in the surah scene
+    if (this.mode === 'surah' && this.current?.node.meta.number === surahNumber) {
+      this.enterSection(branchIndex);
+      setTimeout(executeFinalStep, 1600);
+      return;
+    }
+
+    // If in another surah or section, clean up current and start from globe
+    if (this.sectionScene) this.disposeSectionScene();
+    if (this.current) this.disposeSurahScene();
+    this.globeFade = 1;
+    this.globeGroup.visible = true;
+    this.mode = 'globe';
+    this.cb.onModeChange('globe', null);
+
+    const node = this.nodes[surahNumber - 1];
+    if (!node) return;
+
+    // Step 1: Smoothly rotate globe towards surah
+    this.focusDirection(node.normal, 230, 330);
+
+    // Step 2: Enter Surah
+    setTimeout(() => {
+      if (this.disposed) return;
+      this.enterSurah(surahNumber);
+
+      // Step 3: Enter Section
+      setTimeout(() => {
+        if (this.disposed) return;
+        this.enterSection(branchIndex);
+
+        // Step 4: Frame and illuminate Ayah
+        setTimeout(() => {
+          if (this.disposed) return;
+          executeFinalStep();
+        }, 1600);
+      }, 2500);
+    }, 700);
+  }
+
+  private updateListeningVisuals() {
+    if (this.mode === 'surah' || this.mode === 'entering') {
+      this.updateSurahListeningVisuals();
+    } else if (this.mode === 'section' || this.mode === 'entering_section') {
+      this.updateSectionListeningVisuals();
     }
   }
 
-  /** Called once per recited ayah: a beat on the node plus an outward ripple. */
-  pulseListening() {
-    if (!this.listenNode) return;
-    this.listenPulse = 1;
-    this.spawnRipple();
+  private updateSurahListeningVisuals() {
+    const sc = this.current;
+    if (!sc) return;
+    const sn = sc.node.meta.number;
+    const isListeningThisSurah = this.listenSurah === sn && this.listenPlaying;
+    const activeAyah = isListeningThisSurah ? this.listenAyah : null;
+    const activeBranch = (activeAyah && sc.res[activeAyah - 1]) ? sc.res[activeAyah - 1].branch : null;
+
+    // 1. Highlight / pulse active branch and reset others
+    for (const p of sc.pickables) {
+      if (p.kind === 'branch' && p.branchIndex !== undefined) {
+        const isAct = p.branchIndex === activeBranch;
+        const bColor = sc.node.map.branches[p.branchIndex]?.color || '#3B82F6';
+        if (p.mesh) {
+          const baseS = 2.8;
+          const targetS = isAct ? baseS * (1.4 + 0.3 * this.listenPulse) : baseS;
+          p.mesh.scale.setScalar(targetS);
+          (p.mesh.material as THREE.MeshBasicMaterial).color.set(isAct ? '#fde68a' : bColor);
+        }
+        if (p.glow) {
+          const baseG = 22;
+          const targetG = isAct ? baseG * (1.5 + 0.4 * this.listenPulse) : baseG;
+          p.glow.scale.setScalar(targetG);
+          (p.glow.material as THREE.SpriteMaterial).color.set(isAct ? '#f59e0b' : bColor);
+          (p.glow.material as THREE.SpriteMaterial).opacity = isAct ? 1.0 : 0.8;
+        }
+        if (p.label?.el) {
+          if (isAct) {
+            p.label.el.style.border = '2px solid #fbbf24';
+            p.label.el.style.boxShadow = '0 0 24px rgba(245, 158, 11, 0.85), 0 2px 10px rgba(0,0,0,0.7)';
+            p.label.el.style.background = 'rgba(20, 24, 48, 0.96)';
+            p.label.el.style.color = '#fde68a';
+            p.label.el.style.transform = `scale(${1.12 + 0.06 * this.listenPulse})`;
+            p.label.el.style.zIndex = '40';
+          } else {
+            p.label.el.style.border = `1px solid ${bColor}`;
+            p.label.el.style.boxShadow = '0 2px 8px rgba(0,0,0,0.5)';
+            p.label.el.style.background = 'rgba(8,12,28,0.85)';
+            p.label.el.style.color = '#fff';
+            p.label.el.style.transform = 'scale(1)';
+            p.label.el.style.zIndex = '1';
+          }
+        }
+      }
+    }
+
+    // 2. Highlight active ayah dot inside ayahMesh
+    const total = sc.node.map.totalVerses;
+    const colorObj = new THREE.Color();
+    for (let a = 1; a <= total; a++) {
+      const isAct = a === activeAyah;
+      const r = sc.res[a - 1];
+      const p = sc.ayahBase[a - 1];
+      const scale = isAct ? (2.2 + 0.7 * this.listenPulse) : 0.85;
+      this.tmpM.compose(p, this.tmpQ.identity(), this.tmpB.setScalar(scale));
+      sc.ayahMesh.setMatrixAt(a - 1, this.tmpM);
+      colorObj.set(isAct ? '#fde68a' : r.color);
+      sc.ayahMesh.setColorAt(a - 1, colorObj);
+    }
+    sc.ayahMesh.instanceMatrix.needsUpdate = true;
+    if (sc.ayahMesh.instanceColor) sc.ayahMesh.instanceColor.needsUpdate = true;
+  }
+
+  private updateSectionListeningVisuals() {
+    const sec = this.sectionScene;
+    if (!sec) return;
+    const sn = sec.node.meta.number;
+    const isListeningThisSurah = this.listenSurah === sn && this.listenPlaying;
+    const activeAyah = isListeningThisSurah ? this.listenAyah : null;
+    const bColor = new THREE.Color(sec.branch.color || '#3B82F6');
+    const dotRadius = Math.max(1.8, Math.min(3.2, sec.radius * 0.022));
+
+    for (const p of sec.pickables) {
+      if (p.kind === 'ayah' && p.ayah) {
+        const isAct = p.ayah === activeAyah;
+        if (p.mesh) {
+          const s = isAct ? dotRadius * (2.4 + 0.6 * this.listenPulse) : dotRadius;
+          p.mesh.scale.setScalar(s);
+          (p.mesh.material as THREE.MeshBasicMaterial).color.set(isAct ? '#fef08a' : bColor);
+        }
+        if (p.glow) {
+          const s = isAct ? dotRadius * (14 + 5 * this.listenPulse) : dotRadius * 7.5;
+          p.glow.scale.setScalar(s);
+          (p.glow.material as THREE.SpriteMaterial).color.set(isAct ? '#f59e0b' : bColor);
+          (p.glow.material as THREE.SpriteMaterial).opacity = isAct ? 1.0 : 0.8;
+        }
+        if (p.label?.el) {
+          if (isAct) {
+            p.label.el.style.border = '2px solid #fbbf24';
+            p.label.el.style.boxShadow = '0 0 28px rgba(245, 158, 11, 0.9), inset 0 0 12px rgba(245, 158, 11, 0.4)';
+            p.label.el.style.background = 'rgba(18, 22, 48, 0.98)';
+            p.label.el.style.transform = `scale(${1.14 + 0.06 * this.listenPulse})`;
+            p.label.el.style.zIndex = '50';
+            const badge = p.label.el.querySelector('span');
+            if (badge) {
+              badge.style.background = 'rgba(245, 158, 11, 0.45)';
+              badge.style.borderColor = '#fbbf24';
+              badge.style.color = '#fff';
+              badge.style.fontWeight = '900';
+            }
+          } else {
+            p.label.el.style.border = '1.5px solid ' + (sec.branch.color || '#3B82F6');
+            p.label.el.style.boxShadow = '0 4px 14px rgba(0,0,0,0.6)';
+            p.label.el.style.background = 'rgba(8,14,32,0.92)';
+            p.label.el.style.transform = 'scale(1)';
+            p.label.el.style.zIndex = '1';
+            const badge = p.label.el.querySelector('span');
+            if (badge) {
+              badge.style.background = 'rgba(251,191,36,0.22)';
+              badge.style.borderColor = 'rgba(251,191,36,0.6)';
+              badge.style.color = '#fde68a';
+              badge.style.fontWeight = '900';
+            }
+          }
+        }
+      }
+    }
   }
 
   /** Highlight up to two surahs, join them with an arc and bring both into view. */
@@ -1584,11 +1794,21 @@ export class GlobeEngine {
 
       const title = shortTitle(b.title);
       const rng = b.ayahRange ? `الآيات ${b.ayahRange.start}–${b.ayahRange.end}` : undefined;
+      const branchLabel = this.makeLabel(title, 'surah', bp, {
+        parent: group,
+        offsetY: 12,
+        css:
+          `font-size:12px;font-weight:700;color:#fff;padding:3px 10px;border-radius:9999px;` +
+          `background:rgba(8,12,28,0.85);border:1px solid ${b.color || '#3B82F6'};box-shadow:0 2px 8px rgba(0,0,0,0.5);transition:all 0.3s ease;`,
+      });
       pickables.push({
         kind: 'branch',
         local: bp.clone(),
         r: 3.5,
         branchIndex: bi,
+        mesh: m,
+        glow: g,
+        label: branchLabel,
         info: {
           kind: 'branch',
           surahNumber: sn,
@@ -1596,13 +1816,6 @@ export class GlobeEngine {
           subtitle: [rng, b.description].filter(Boolean).join(' • '),
           color: '#' + col.getHexString(),
         },
-      });
-      this.makeLabel(title, 'surah', bp, {
-        parent: group,
-        offsetY: 12,
-        css:
-          `font-size:12px;font-weight:700;color:#fff;padding:3px 10px;border-radius:9999px;` +
-          `background:rgba(8,12,28,0.85);border:1px solid ${b.color || '#3B82F6'};box-shadow:0 2px 8px rgba(0,0,0,0.5);`,
       });
 
       const kids = b.children || [];
@@ -1718,7 +1931,7 @@ export class GlobeEngine {
       }
     }
 
-    return { group, node, extent, pickables, ayahMesh, ayahBase, branchPos, viewDir };
+    return { group, node, extent, pickables, ayahMesh, ayahBase, branchPos, viewDir, res };
   }
 
   private disposeSurahScene() {
@@ -2376,7 +2589,12 @@ export class GlobeEngine {
     }
 
     // listening: decay the per-ayah beat, keep the label lit, run outward ripples
-    this.listenPulse = Math.max(0, this.listenPulse - dt * 2.4);
+    if (this.listenPulse > 0) {
+      this.listenPulse = Math.max(0, this.listenPulse - dt * 2.4);
+      if (this.mode === 'surah' || this.mode === 'section') {
+        this.updateListeningVisuals();
+      }
+    }
     if (this.listenNode) {
       this.listenNode.label.el.style.color = '#fde68a';
     }
