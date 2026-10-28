@@ -42,6 +42,10 @@ const shortTitle = (t: string): string => {
   return s.length > 0 ? s : t;
 };
 
+const FLOAT_MIN_W = 300;
+const FLOAT_MAX_W = 900;
+const FLOAT_MIN_H = 120;
+
 export interface DockInset {
   left: number;
   bottom: number;
@@ -98,7 +102,9 @@ export const ListeningDock: React.FC<Props> = ({
     x: typeof window !== 'undefined' ? Math.max(16, (window.innerWidth - 490) / 2) : 100,
     y: 74,
   }));
-  const [width, setWidth] = usePersistentState<number>('listen-dock-float-width', 490, (v) => typeof v === 'number' && v >= 340 && v <= 900);
+  const [width, setWidth] = usePersistentState<number>('listen-dock-float-width', 490, (v) => typeof v === 'number' && v >= FLOAT_MIN_W && v <= FLOAT_MAX_W);
+  // null = height follows the content; a number = the user dragged the player to a fixed height
+  const [height, setHeight] = usePersistentState<number | null>('listen-dock-float-height', null, (v) => v === null || (typeof v === 'number' && v >= FLOAT_MIN_H && v <= 1600));
   const [dockWidth, setDockWidth] = usePersistentState<number>('listen-dock-side-width', 368, (v) => typeof v === 'number' && v >= 280 && v <= 640);
   const [isNearDockZone, setIsNearDockZone] = useState(false);
 
@@ -238,8 +244,45 @@ export const ListeningDock: React.FC<Props> = ({
     []
   );
 
-  const handlePointerDownResize = (e: React.PointerEvent) =>
-    startResize(e, width, 340, Math.max(340, Math.min(window.innerWidth - pos.x - 8, 900)), setWidth);
+  // Floating player: drag any edge or corner. dirX -1 = left edge, 1 = right edge; dirY 1 = bottom edge.
+  const startFloatResize = (e: React.PointerEvent, dirX: -1 | 0 | 1, dirY: 0 | 1) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const start = {
+      mouseX: e.clientX,
+      mouseY: e.clientY,
+      w: width,
+      h: dockContainerRef.current?.offsetHeight ?? FLOAT_MIN_H,
+      x: pos.x,
+      y: pos.y,
+    };
+    const clamp = (v: number, min: number, max: number) => Math.round(Math.min(Math.max(min, v), Math.max(min, max)));
+
+    const onMove = (ev: PointerEvent) => {
+      const dx = ev.clientX - start.mouseX;
+      const dy = ev.clientY - start.mouseY;
+      if (dirX === 1) {
+        setWidth(clamp(start.w + dx, FLOAT_MIN_W, Math.min(FLOAT_MAX_W, window.innerWidth - start.x - 8)));
+      } else if (dirX === -1) {
+        const next = clamp(start.w - dx, FLOAT_MIN_W, Math.min(FLOAT_MAX_W, start.x + start.w - 8));
+        setWidth(next);
+        setPos((p) => ({ ...p, x: start.x + start.w - next }));
+      }
+      if (dirY === 1) {
+        setHeight(clamp(start.h + dy, FLOAT_MIN_H, window.innerHeight - start.y - 8));
+      }
+    };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  };
+  const resetFloatSize = () => {
+    setWidth(490);
+    setHeight(null);
+  };
   const handlePointerDownDockResize = (e: React.PointerEvent) =>
     startResize(e, dockWidth, 280, Math.max(280, Math.min(window.innerWidth * 0.6, 640)), setDockWidth);
 
@@ -523,6 +566,7 @@ export const ListeningDock: React.FC<Props> = ({
                 {/* Follow Camera Switch */}
                 <button
                   type="button"
+                  data-tour="follow-toggle"
                   onClick={() => onToggleFollowCamera?.(!followCamera)}
                   aria-pressed={followCamera}
                   className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold border transition-colors ${
@@ -763,17 +807,20 @@ export const ListeningDock: React.FC<Props> = ({
         role="region"
         data-tour="listen-dock"
         aria-label="مشغّل التلاوة العائم"
-        className="fixed z-[55] rounded-2xl bg-slate-950/90 backdrop-blur-xl border shadow-2xl px-3.5 py-2.5 animate-fade-in select-none"
+        className="fixed z-[55] rounded-2xl bg-slate-950/90 backdrop-blur-xl border shadow-2xl animate-fade-in select-none"
         style={{
           left: `${pos.x}px`,
           top: `${pos.y}px`,
           width: `${width}px`,
+          ...(height !== null ? { height: `${height}px` } : {}),
           maxWidth: 'calc(100vw - 24px)',
+          maxHeight: 'calc(100dvh - 16px)',
           borderColor: `${accent}66`,
           boxShadow: `0 0 32px ${accent}25`,
         }}
         dir="rtl"
       >
+        <div className="h-full max-h-[inherit] overflow-y-auto overflow-x-hidden custom-scrollbar rounded-2xl px-3.5 py-2.5">
         {/* Drag Bar & Top Row */}
         <div
           onPointerDown={handlePointerDownDrag}
@@ -847,7 +894,7 @@ export const ListeningDock: React.FC<Props> = ({
         )}
 
         {/* Playback Controls Row */}
-        <div className="mt-2 flex items-center justify-between gap-1.5 flex-wrap sm:flex-nowrap">
+        <div className="mt-2 flex items-center justify-between gap-1.5 flex-wrap">
           <div className="flex items-center gap-0.5">
             <IconButton label="السورة السابقة" size="sm" onClick={() => surahPlayer.prevSurah()} disabled={state.surah <= 1}>
               <ChevronsRight className="w-4 h-4" />
@@ -879,7 +926,7 @@ export const ListeningDock: React.FC<Props> = ({
             </IconButton>
           </div>
 
-          <div className="flex items-center gap-1.5 min-w-0">
+          <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
             {/* Shuffle Button */}
             <button
               type="button"
@@ -913,6 +960,7 @@ export const ListeningDock: React.FC<Props> = ({
             {/* Follow Camera Toggle */}
             <button
               type="button"
+              data-tour="follow-toggle"
               onClick={() => onToggleFollowCamera?.(!followCamera)}
               aria-pressed={followCamera}
               title={followCamera ? 'تتبع الكاميرا للآية والسورة: مفعّل (اضغط للإيقاف)' : 'تتبع الكاميرا للآية والسورة: متوقف (اضغط للتفعيل)'}
@@ -998,14 +1046,46 @@ export const ListeningDock: React.FC<Props> = ({
           </div>
         )}
 
-        {/* Resize Handle on bottom edge */}
+        </div>
+
+        {/* Resize handles: both side edges, bottom edge and both bottom corners. Double-click resets the size. */}
         <div
-          onPointerDown={handlePointerDownResize}
-          className="absolute -bottom-1 left-2 right-2 h-2 cursor-ew-resize flex items-center justify-center opacity-40 hover:opacity-100 transition-opacity"
-          title="اسحب لتغيير العرض"
+          onPointerDown={(e) => startFloatResize(e, -1, 0)}
+          onDoubleClick={resetFloatSize}
+          className="absolute top-3 bottom-3 -left-1 w-2 cursor-ew-resize"
+          title="اسحب لتغيير العرض (نقرتان لإعادة الحجم)"
+          aria-hidden="true"
+        />
+        <div
+          onPointerDown={(e) => startFloatResize(e, 1, 0)}
+          onDoubleClick={resetFloatSize}
+          className="absolute top-3 bottom-3 -right-1 w-2 cursor-ew-resize"
+          title="اسحب لتغيير العرض (نقرتان لإعادة الحجم)"
+          aria-hidden="true"
+        />
+        <div
+          onPointerDown={(e) => startFloatResize(e, 0, 1)}
+          onDoubleClick={resetFloatSize}
+          className="absolute -bottom-1 left-4 right-4 h-2 cursor-ns-resize flex items-center justify-center opacity-40 hover:opacity-100 transition-opacity"
+          title="اسحب لتغيير الارتفاع (نقرتان لإعادة الحجم)"
+          aria-hidden="true"
         >
           <GripHorizontal className="w-4 h-2 text-slate-400" />
         </div>
+        <div
+          onPointerDown={(e) => startFloatResize(e, -1, 1)}
+          onDoubleClick={resetFloatSize}
+          className="absolute -bottom-1 -left-1 w-4 h-4 cursor-nesw-resize"
+          title="اسحب لتغيير الحجم (نقرتان لإعادة الحجم)"
+          aria-hidden="true"
+        />
+        <div
+          onPointerDown={(e) => startFloatResize(e, 1, 1)}
+          onDoubleClick={resetFloatSize}
+          className="absolute -bottom-1 -right-1 w-4 h-4 cursor-nwse-resize"
+          title="اسحب لتغيير الحجم (نقرتان لإعادة الحجم)"
+          aria-hidden="true"
+        />
       </div>
     </>
   );

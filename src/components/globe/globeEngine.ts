@@ -2733,11 +2733,20 @@ export class GlobeEngine {
       if (this.mode === 'globe') this.setHoverNode(null);
       else if (this.mode === 'surah' || this.mode === 'section') this.setHoverPickable(null);
     }
+    // While the camera follows a recited ayah inside its constellation, don't spin it away from the centre of the view.
+    const followingAyah =
+      this.mode === 'section' &&
+      this.followCamera &&
+      this.listenPlaying &&
+      this.sectionScene?.node.meta.number === this.listenSurah &&
+      this.listenAyah >= this.sectionScene.startAyah &&
+      this.listenAyah <= this.sectionScene.endAyah;
     this.controls.autoRotate =
       (this.mode === 'globe' || this.mode === 'surah' || this.mode === 'section') &&
       !this.hoverNode &&
       !this.hoverPick &&
       !this.dragging &&
+      !followingAyah &&
       !(this.mode === 'globe' && (this.listenPlaying || (this.compareNodes[0] && this.compareNodes[1])));
 
     this.controls.update();
@@ -2848,6 +2857,7 @@ export class GlobeEngine {
       if (isHoveredSatellite) scale = 1.32;
 
       let top = y + l.offsetY;
+      let left = x;
       if (l.kind === 'section' && l.el.querySelector<HTMLElement>('.ayah-txt')?.dataset.exp === '1') {
         // Expanded (followed) ayah: keep the whole card inside the free band between the header and the bottom buttons.
         const topMargin = 84;
@@ -2857,9 +2867,17 @@ export class GlobeEngine {
         scale = Math.min(1, avail / h);
         l.el.style.transformOrigin = '50% 0';
         top = Math.min(Math.max(top, topMargin), this.height - bottomMargin - h * scale);
+        // Same for the sides: keep the whole card on screen even if the ayah itself has drifted to the edge.
+        const sideMargin = 12;
+        const halfW = ((l.el.offsetWidth || 1) * scale) / 2;
+        if (halfW * 2 + sideMargin * 2 < this.width) {
+          left = Math.min(Math.max(left, sideMargin + halfW), this.width - sideMargin - halfW);
+        } else {
+          left = this.width / 2;
+        }
       }
 
-      l.el.style.transform = `translate(${x.toFixed(1)}px,${top.toFixed(1)}px) translate(-50%,0) scale(${scale})`;
+      l.el.style.transform = `translate(${left.toFixed(1)}px,${top.toFixed(1)}px) translate(-50%,0) scale(${scale})`;
     }
   }
 }
