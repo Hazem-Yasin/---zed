@@ -64,7 +64,7 @@ export interface QuranPageData {
   imageUrl?: string;
 }
 
-export type AppViewMode = 'home' | 'globe' | 'mushaf' | 'mindmap' | 'section-map' | 'test-word-reveal' | 'test-random-ayah' | 'global-map';
+export type AppViewMode = 'home' | 'globe' | 'mushaf' | 'mindmap' | 'section-map' | 'test-word-reveal' | 'test-random-ayah' | 'global-map' | 'site-map';
 
 /** Constrains a quiz to a specific surah or ayah range within a surah */
 export interface QuizScope {

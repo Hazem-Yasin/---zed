@@ -243,7 +243,7 @@ export const QuranGlobe: React.FC<QuranGlobeProps> = ({ onOpenAyah, onOpenMindMa
       )}
 
       {/* ---------------- top bar ---------------- */}
-      <div className="absolute top-3 inset-x-3 flex items-start justify-between gap-3 pointer-events-none z-10">
+      <div className="absolute top-3 left-3 right-16 flex items-start justify-between gap-3 pointer-events-none z-10">
         <div className={`${glass} rounded-2xl px-4 py-2.5 pointer-events-auto flex items-center gap-3`}>
           <div>
             <div className="flex items-center gap-2">

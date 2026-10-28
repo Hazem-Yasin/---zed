@@ -2,6 +2,7 @@ import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { AppViewMode, Ayah, QuizScope } from './types';
 import { Logo } from './components/ui/Logo';
 import { CommandPalette } from './components/ui/CommandPalette';
+import { SiteMap, SiteMapTarget } from './components/ui/SiteMap';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
 import { HomeScreen } from './components/home/HomeScreen';
 import { AyahDetailModal } from './components/ayah-sheet/AyahDetailModal';
@@ -21,9 +22,7 @@ import {
   X,
   Orbit,
   Search,
-  PanelRightClose,
-  PanelRightOpen,
-  Dumbbell,
+  Map as MapIcon,
 } from 'lucide-react';
 
 /* Each screen is its own chunk: three.js (globe) is only downloaded when the globe is opened. */
@@ -61,8 +60,6 @@ export default function App() {
   const [currentView, setCurrentView] = useState<AppViewMode>('globe');
   const [currentPage, setCurrentPage] = usePersistentState<number>('page', 1, isPage);
   const [selectedSurahNumber, setSelectedSurahNumber] = usePersistentState<number>('surah', 1, isSurah);
-  const [sidebarCollapsed, setSidebarCollapsed] = usePersistentState<boolean>('sidebar-collapsed', false, (v) => typeof v === 'boolean');
-
   // Section Map state
   const [sectionMapState, setSectionMapState] = useState<{
     surahNumber: number;
@@ -75,8 +72,8 @@ export default function App() {
   const [selectedAyah, setSelectedAyah] = useState<Ayah | null>(null);
   const [isModalAudioPlaying, setIsModalAudioPlaying] = useState<boolean>(false);
 
-  // Mobile Nav Drawer state
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
+  // Sliding menu drawer — closed by default so the first thing the user sees is the globe
+  const [menuOpen, setMenuOpen] = useState<boolean>(false);
 
   // Command palette
   const [paletteOpen, setPaletteOpen] = useState<boolean>(false);
@@ -100,12 +97,14 @@ export default function App() {
     return () => unsub();
   }, []);
 
-  // Ctrl/Cmd+K opens quick search from every screen
+  // Ctrl/Cmd+K opens quick search from every screen; Escape closes the menu drawer
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setPaletteOpen((o) => !o);
+      } else if (e.key === 'Escape') {
+        setMenuOpen(false);
       }
     };
     window.addEventListener('keydown', onKey);
@@ -182,7 +181,7 @@ export default function App() {
     setIsModalAudioPlaying(true);
   };
 
-  /* ---- navigation config (shared by sidebar, mobile drawer, bottom bar and palette) ---- */
+  /* ---- navigation config (shared by the sliding menu, the site map and the palette) ---- */
   const groups: { title: string; items: NavItem[] }[] = [
     {
       title: 'الرئيسية',
@@ -200,6 +199,7 @@ export default function App() {
       items: [
         { id: 'globe', view: 'globe', label: 'أطلس القرآن', icon: <Orbit className="w-5 h-5" />, run: () => setCurrentView('globe') },
         { id: 'global-map', view: 'global-map', label: 'الخريطة الكبرى', icon: <Compass className="w-5 h-5" />, run: () => setCurrentView('global-map') },
+        { id: 'site-map', view: 'site-map', label: 'خريطة الموقع', icon: <MapIcon className="w-5 h-5" />, run: () => setCurrentView('site-map') },
       ],
     },
     {
@@ -211,178 +211,141 @@ export default function App() {
     },
   ];
 
+  const allItems = groups.flatMap((g) => g.items);
+
   /** Section map is a drill-down of the mind map, so it keeps that item highlighted. */
   const isActive = (it: NavItem) => currentView === it.view || (it.view === 'mindmap' && currentView === 'section-map');
   const itemOn = 'bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/20';
+  const activeItem = allItems.find(isActive);
 
-  const paletteCommands = groups.flatMap((g) => g.items).map((i) => ({ id: i.id, label: i.label, run: i.run }));
+  const paletteCommands = allItems.map((i) => ({ id: i.id, label: i.label, run: i.run }));
 
   const openSurahInMushaf = (n: number) => {
     const s = SURAHS_LIST.find((x) => x.number === n);
     if (s) handleNavigateToMushaf(s.startPage);
   };
 
-  // Bottom bar (mobile): the five things people do most
-  const tabs: { id: string; label: string; icon: React.ReactNode; on: boolean; run: () => void }[] = [
-    { id: 'home', label: 'الرئيسية', icon: <Home className="w-6 h-6" />, on: currentView === 'home', run: () => setCurrentView('home') },
-    { id: 'mushaf', label: 'المصحف', icon: <BookOpen className="w-6 h-6" />, on: currentView === 'mushaf', run: () => setCurrentView('mushaf') },
-    { id: 'mindmap', label: 'الخريطة', icon: <Brain className="w-6 h-6" />, on: currentView === 'mindmap' || currentView === 'section-map', run: () => setCurrentView('mindmap') },
-    { id: 'globe', label: 'الأطلس', icon: <Orbit className="w-6 h-6" />, on: currentView === 'globe', run: () => setCurrentView('globe') },
-    {
-      id: 'practice',
-      label: 'تدريب',
-      icon: <Dumbbell className="w-6 h-6" />,
-      on: currentView === 'test-word-reveal' || currentView === 'test-random-ayah',
-      run: () => handleStartWordRevealTest(),
-    },
-  ];
+  const pick = (it: NavItem) => {
+    it.run();
+    setMenuOpen(false);
+  };
+
+  const goTo = (target: SiteMapTarget) => {
+    const it = allItems.find((i) => i.id === target);
+    if (it) pick(it);
+  };
+
+  const menuButton = (extra: string) => (
+    <button
+      type="button"
+      onClick={() => setMenuOpen(true)}
+      aria-label="فتح القائمة"
+      aria-expanded={menuOpen}
+      aria-controls="app-menu"
+      title="القائمة"
+      className={`p-2.5 rounded-xl text-slate-200 hover:text-amber-300 ${extra}`}
+    >
+      <Menu className="w-5 h-5" />
+    </button>
+  );
 
   return (
     <div className="flex h-[100dvh] w-screen overflow-hidden bg-slate-950 font-cairo text-slate-100" dir="rtl">
-      {/* Sidebar Navigation (Desktop & Tablet) */}
-      <aside
-        className={`hidden md:flex flex-col bg-slate-900 border-l border-amber-500/20 p-3 justify-between shrink-0 transition-[width] duration-200 overflow-y-auto ${
-          sidebarCollapsed ? 'w-[4.25rem]' : 'w-64'
+      {/* Sliding menu: hidden until asked for, so the globe is the first thing on screen */}
+      <div
+        className={`fixed inset-0 z-[60] bg-slate-950/60 backdrop-blur-[2px] transition-opacity duration-200 ${
+          menuOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
-        aria-label="التنقل الرئيسي"
+        onClick={() => setMenuOpen(false)}
+        aria-hidden
+      />
+      <aside
+        id="app-menu"
+        aria-label="القائمة الرئيسية"
+        aria-hidden={!menuOpen}
+        className={`fixed inset-y-0 right-0 z-[70] w-72 max-w-[85vw] flex flex-col bg-slate-900 border-l border-amber-500/30 shadow-2xl p-3 overflow-y-auto transition-[transform,visibility] duration-250 ease-out ${
+          menuOpen ? 'translate-x-0 visible' : 'translate-x-full invisible'
+        }`}
       >
-        <div className="space-y-4">
-          {/* App Branding */}
-          <div className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-3 px-1'} py-1`}>
-            <Logo className="w-10 h-10 shrink-0" />
-            {!sidebarCollapsed && (
-              <div className="min-w-0">
-                <h1 className="font-black text-2xl text-amber-300 leading-tight">زد</h1>
-                <p className="text-sm text-slate-300">مصحف الخرائط · قراءة وتدبر وحفظ</p>
-              </div>
-            )}
+        <div className="flex items-center gap-3 px-1 py-1">
+          <Logo className="w-10 h-10 shrink-0" />
+          <div className="min-w-0 flex-1">
+            <h1 className="font-black text-2xl text-amber-300 leading-tight">زد</h1>
+            <p className="text-sm text-slate-300">مصحف الخرائط · قراءة وتدبر وحفظ</p>
           </div>
-
-          {/* Quick search */}
           <button
             type="button"
-            onClick={() => setPaletteOpen(true)}
-            aria-label="بحث سريع (Ctrl+K)"
-            title="بحث سريع (Ctrl+K)"
-            className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-2 px-3'} py-2.5 rounded-xl border border-slate-700 bg-slate-950/60 text-slate-300 hover:text-slate-100 hover:border-slate-600 text-sm`}
+            onClick={() => setMenuOpen(false)}
+            aria-label="إغلاق القائمة"
+            className="p-2 rounded-xl text-slate-300 hover:text-amber-300 hover:bg-slate-800"
           >
-            <Search className="w-5 h-5 shrink-0" />
-            {!sidebarCollapsed && (
-              <>
-                <span className="flex-1 text-start">بحث سريع</span>
-                <kbd className="text-xs border border-slate-600 rounded px-1">Ctrl K</kbd>
-              </>
-            )}
-          </button>
-
-          {/* Navigation Links */}
-          <nav className="space-y-3">
-            {groups.map((g) => (
-              <div key={g.title} className="space-y-1">
-                {sidebarCollapsed ? (
-                  <div className="mx-2 border-t border-slate-800" aria-hidden />
-                ) : (
-                  <div className="px-3 pt-1 pb-0.5 text-sm font-bold text-slate-400 tracking-wide">{g.title}</div>
-                )}
-                {g.items.map((it) => {
-                  const on = isActive(it);
-                  return (
-                    <button
-                      key={it.id}
-                      type="button"
-                      onClick={it.run}
-                      aria-current={on ? 'page' : undefined}
-                      aria-label={sidebarCollapsed ? it.label : undefined}
-                      title={sidebarCollapsed ? it.label : undefined}
-                      className={`w-full flex items-center ${
-                        sidebarCollapsed ? 'justify-center px-0' : 'gap-3 px-3'
-                      } py-2.5 rounded-xl text-sm font-bold transition-colors ${on ? itemOn : 'text-slate-200 hover:bg-slate-800'}`}
-                    >
-                      {it.icon}
-                      {!sidebarCollapsed && <span>{it.label}</span>}
-                    </button>
-                  );
-                })}
-              </div>
-            ))}
-          </nav>
-        </div>
-
-        <div className="space-y-2 pt-3">
-          {!sidebarCollapsed && (
-            <div className="p-2.5 bg-slate-950/70 rounded-xl border border-slate-800 text-xs text-slate-300 text-center">
-              <p className="font-bold text-amber-400 mb-0.5">مرجع الخرائط الذهنية</p>
-              <p>كتاب الخرائط الذهنية لسور القرآن الكريم</p>
-            </div>
-          )}
-          <button
-            type="button"
-            onClick={() => setSidebarCollapsed((c) => !c)}
-            aria-label={sidebarCollapsed ? 'توسيع القائمة' : 'طيّ القائمة'}
-            title={sidebarCollapsed ? 'توسيع القائمة' : 'طيّ القائمة'}
-            className="w-full flex items-center justify-center py-2 rounded-xl text-slate-300 hover:text-amber-300 hover:bg-slate-800"
-          >
-            {sidebarCollapsed ? <PanelRightOpen className="w-5 h-5" /> : <PanelRightClose className="w-5 h-5" />}
+            <X className="w-5 h-5" />
           </button>
         </div>
-      </aside>
 
-      {/* Main View Area */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden relative min-w-0">
-        {/* Mobile Top Navigation Header */}
-        <header className="md:hidden bg-slate-900 border-b border-amber-500/20 px-4 py-2 flex items-center justify-between z-40">
-          <div className="flex items-center gap-2">
-            <Logo className="w-8 h-8" />
-            <span className="font-black text-amber-300 text-xl leading-none">زد</span>
-          </div>
+        <button
+          type="button"
+          onClick={() => {
+            setMenuOpen(false);
+            setPaletteOpen(true);
+          }}
+          className="mt-3 w-full flex items-center gap-2 px-3 py-2.5 rounded-xl border border-slate-700 bg-slate-950/60 text-slate-300 hover:text-slate-100 hover:border-slate-600 text-sm"
+        >
+          <Search className="w-5 h-5 shrink-0" />
+          <span className="flex-1 text-start">بحث سريع</span>
+          <kbd className="text-xs border border-slate-600 rounded px-1">Ctrl K</kbd>
+        </button>
 
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => setPaletteOpen(true)}
-              aria-label="بحث سريع"
-              className="p-2.5 bg-slate-800 rounded-xl text-slate-200"
-            >
-              <Search className="w-5 h-5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              aria-label={isMobileMenuOpen ? 'إغلاق القائمة' : 'كل الأقسام'}
-              aria-expanded={isMobileMenuOpen}
-              className="p-2.5 bg-slate-800 rounded-xl text-slate-200"
-            >
-              {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-            </button>
-          </div>
-        </header>
-
-        {/* Mobile Navigation Dropdown Drawer (same config as the sidebar) */}
-        {isMobileMenuOpen && (
-          <div className="md:hidden absolute top-[3.5rem] inset-x-0 bg-slate-900 border-b border-amber-500/30 p-4 z-50 shadow-2xl space-y-3 animate-fade-in max-h-[70dvh] overflow-y-auto">
-            {groups.map((g) => (
-              <div key={g.title} className="space-y-1.5">
-                <div className="px-1 text-sm font-bold text-slate-400">{g.title}</div>
-                {g.items.map((it) => (
+        <nav className="mt-4 space-y-3 flex-1">
+          {groups.map((g) => (
+            <div key={g.title} className="space-y-1">
+              <div className="px-3 pt-1 pb-0.5 text-sm font-bold text-slate-400 tracking-wide">{g.title}</div>
+              {g.items.map((it) => {
+                const on = isActive(it);
+                return (
                   <button
                     key={it.id}
                     type="button"
-                    onClick={() => {
-                      it.run();
-                      setIsMobileMenuOpen(false);
-                    }}
-                    aria-current={isActive(it) ? 'page' : undefined}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold ${
-                      isActive(it) ? itemOn : 'bg-slate-800 text-slate-100'
+                    onClick={() => pick(it)}
+                    aria-current={on ? 'page' : undefined}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-colors ${
+                      on ? itemOn : 'text-slate-200 hover:bg-slate-800'
                     }`}
                   >
                     {it.icon}
                     <span>{it.label}</span>
                   </button>
-                ))}
-              </div>
-            ))}
-          </div>
+                );
+              })}
+            </div>
+          ))}
+        </nav>
+
+        <div className="mt-4 p-2.5 bg-slate-950/70 rounded-xl border border-slate-800 text-xs text-slate-300 text-center">
+          <p className="font-bold text-amber-400 mb-0.5">مرجع الخرائط الذهنية</p>
+          <p>كتاب الخرائط الذهنية لسور القرآن الكريم</p>
+        </div>
+      </aside>
+
+      {/* Main View Area */}
+      <div className="flex-1 flex flex-col h-full overflow-hidden relative min-w-0">
+        {/* Slim bar on every screen except the globe, which gets a floating button instead */}
+        {currentView !== 'globe' && (
+          <header className="bg-slate-900 border-b border-amber-500/20 px-3 py-1.5 flex items-center gap-2 z-40 shrink-0">
+            {menuButton('bg-slate-800')}
+            <Logo className="w-7 h-7" />
+            <span className="font-black text-amber-300 text-lg leading-none">زد</span>
+            {activeItem && <span className="text-sm text-slate-300 truncate">· {activeItem.label}</span>}
+            <button
+              type="button"
+              onClick={() => setPaletteOpen(true)}
+              aria-label="بحث سريع (Ctrl+K)"
+              title="بحث سريع (Ctrl+K)"
+              className="ms-auto p-2.5 bg-slate-800 rounded-xl text-slate-200 hover:text-amber-300"
+            >
+              <Search className="w-5 h-5" />
+            </button>
+          </header>
         )}
 
         {/* View Router: every screen is lazy, isolated by an error boundary, and re-mounted per view */}
@@ -443,6 +406,8 @@ export default function App() {
                 <GlobalQuranMindMap onSelectSurah={handleOpenMindMap} onNavigateToMushaf={handleNavigateToMushaf} />
               )}
 
+              {currentView === 'site-map' && <SiteMap current={activeItem?.id as SiteMapTarget} onGo={goTo} />}
+
               {currentView === 'test-word-reveal' && (
                 <WordRevealTest
                   initialPageNumber={currentPage}
@@ -463,26 +428,7 @@ export default function App() {
           </ErrorBoundary>
         </div>
 
-        {/* Mobile bottom tab bar */}
-        <nav
-          className="md:hidden grid grid-cols-5 bg-slate-900 border-t border-amber-500/20 z-40 pb-[env(safe-area-inset-bottom)]"
-          aria-label="التنقل السريع"
-        >
-          {tabs.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={t.run}
-              aria-current={t.on ? 'page' : undefined}
-              className={`flex flex-col items-center justify-center gap-0.5 py-2 min-h-[3.5rem] text-xs font-bold transition-colors ${
-                t.on ? 'text-amber-300' : 'text-slate-300'
-              }`}
-            >
-              <span className={`px-4 py-1 rounded-full ${t.on ? 'bg-amber-500/20' : ''}`}>{t.icon}</span>
-              {t.label}
-            </button>
-          ))}
-        </nav>
+        {currentView === 'globe' && menuButton('absolute top-3 right-3 z-40 glass-panel')}
       </div>
 
       {/* Quick search (Ctrl/Cmd+K) */}
