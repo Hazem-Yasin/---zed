@@ -107,20 +107,35 @@ const GuidedTour: React.FC<Props> = ({ onStep, onEnd }) => {
 
   useEffect(() => nextBtn.current?.focus(), []);
 
-  // Put the popup on whichever side covers less of the highlighted element.
+  // Put the popup in whichever corner / edge covers least of the highlighted element.
   const vh = typeof window === 'undefined' ? 800 : window.innerHeight;
   const vw = typeof window === 'undefined' ? 1200 : window.innerWidth;
-  let dock: 'top' | 'bottom' = step.dock ?? 'bottom';
-  if (!step.dock && spot) {
-    const cardW = Math.min(vw * 0.92, 416);
-    const cardH = 270;
-    const cardL = (vw - cardW) / 2;
-    const overlap = (cardT: number) => {
-      const w = Math.max(0, Math.min(spot.left + spot.width, cardL + cardW) - Math.max(spot.left, cardL));
-      const h = Math.max(0, Math.min(spot.top + spot.height, cardT + cardH) - Math.max(spot.top, cardT));
+  const cardW = Math.min(vw * 0.92, 416);
+  const cardH = 270;
+  const TOP = 72;
+  const BOTTOM = 96;
+  const MARGIN = 12;
+  const lefts = [(vw - cardW) / 2, vw - cardW - MARGIN, MARGIN]; // center, right, left
+  const tops = step.dock === 'top' ? [TOP] : step.dock === 'bottom' ? [vh - BOTTOM - cardH] : [vh - BOTTOM - cardH, TOP];
+  let cardLeft = lefts[0];
+  let cardTop = tops[0];
+  if (spot) {
+    const overlap = (l: number, t: number) => {
+      const w = Math.max(0, Math.min(spot.left + spot.width, l + cardW) - Math.max(spot.left, l));
+      const h = Math.max(0, Math.min(spot.top + spot.height, t + cardH) - Math.max(spot.top, t));
       return w * h;
     };
-    dock = overlap(72) < overlap(vh - 96 - cardH) ? 'top' : 'bottom';
+    let best = Infinity;
+    for (const t of tops) {
+      for (const l of lefts) {
+        const o = overlap(l, t);
+        if (o < best) {
+          best = o;
+          cardLeft = l;
+          cardTop = t;
+        }
+      }
+    }
   }
 
   const firstSite = steps.findIndex((s) => s.part === 'site');
@@ -146,9 +161,8 @@ const GuidedTour: React.FC<Props> = ({ onStep, onEnd }) => {
       <section
         role="dialog"
         aria-label={`الجولة التعريفية: ${step.title}`}
-        className={`pointer-events-auto absolute inset-x-0 mx-auto w-[min(92vw,26rem)] glass-panel-strong rounded-2xl border-amber-500/40 overflow-hidden ${
-          dock === 'top' ? 'top-[4.5rem]' : 'bottom-24'
-        }`}
+        className="pointer-events-auto absolute w-[min(92vw,26rem)] glass-panel-strong rounded-2xl border-amber-500/40 overflow-hidden"
+        style={{ left: cardLeft, top: cardTop }}
       >
         <div className="h-1 bg-slate-800" aria-hidden>
           <div className="h-full bg-amber-400 transition-[width] duration-100 ease-linear" style={{ width: `${pct}%` }} />

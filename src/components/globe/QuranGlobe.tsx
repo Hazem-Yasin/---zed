@@ -754,7 +754,7 @@ export const QuranGlobe: React.FC<QuranGlobeProps> = ({ onOpenAyah, onOpenMindMa
           </div>
 
           {/* Hover popup inside surah */}
-          {hoverItem && mode === 'surah' && (
+          {hoverItem && mode === 'surah' && !touring && (
             <div
               className={`${glass} absolute bottom-20 left-1/2 -translate-x-1/2 max-w-md w-[92%] rounded-2xl px-4 py-3 z-10 pointer-events-none animate-fade-in border`}
               style={{ borderColor: hoverItem.color || '#f5b942' }}
@@ -893,7 +893,7 @@ export const QuranGlobe: React.FC<QuranGlobeProps> = ({ onOpenAyah, onOpenMindMa
           </div>
 
           {/* Hover popup inside section mode */}
-          {hoverItem && mode === 'section' && (
+          {hoverItem && mode === 'section' && !touring && (
             <div
               className={`${glass} absolute bottom-20 left-1/2 -translate-x-1/2 max-w-lg w-[92%] rounded-2xl px-4 py-3 z-10 pointer-events-none animate-fade-in border-2`}
               style={{ borderColor: hoverItem.color || '#f5b942' }}
