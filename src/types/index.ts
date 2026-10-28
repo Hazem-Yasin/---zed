@@ -75,11 +75,19 @@ export interface QuizScope {
   endAyah?: number;
 }
 
-export type ReciterId = 'ar.alafasy' | 'ar.husary' | 'ar.minshawi' | 'ar.hudhaify';
+export type ReciterId =
+  | 'ar.alafasy'
+  | 'ar.husary'
+  | 'ar.minshawi'
+  | 'ar.hudhaify'
+  | 'ar.abdulbasitmujawwad'
+  | 'ar.minshawimujawwad';
 
 export interface Reciter {
   id: ReciterId;
   name: string;
   arabicName: string;
   serverUrl: string;
+  /** If set, audio comes from everyayah.com/data/<folder>/<SSS><AAA>.mp3 instead of the islamic.network CDN. */
+  everyAyahFolder?: string;
 }

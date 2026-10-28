@@ -511,7 +511,7 @@ export class GlobeEngine {
   private pickMode = false;
   private compareNodes: (SurahNode | null)[] = [null, null];
   private compareRings: THREE.Sprite[] = [];
-  private compareArc: THREE.Line | null = null;
+  private compareArc: THREE.Mesh | null = null;
   private compareDot: THREE.Sprite | null = null;
   private compareCurve: THREE.Vector3[] = [];
 
@@ -2355,20 +2355,24 @@ export class GlobeEngine {
     const mid = a.pos.clone().add(b.pos).multiplyScalar(0.5);
     const lift = a.pos.length() + chord * 0.55;
     const ctrl = mid.lengthSq() > 1 ? mid.clone().normalize().multiplyScalar(lift) : a.normal.clone().multiplyScalar(lift);
-    const pts = new THREE.QuadraticBezierCurve3(a.pos.clone(), ctrl, b.pos.clone()).getPoints(72);
+    const curve = new THREE.QuadraticBezierCurve3(a.pos.clone(), ctrl, b.pos.clone());
+    const pts = curve.getPoints(72);
 
+    // WebGL lines are always 1px wide, so the arc is a thin tube mesh to make it thick.
+    const SEGMENTS = 72;
+    const RADIAL = 6;
+    const geo = new THREE.TubeGeometry(curve, SEGMENTS, 1.4, RADIAL, false);
     const c1 = new THREE.Color('#38bdf8');
     const c2 = new THREE.Color('#c084fc');
     const colors: number[] = [];
-    pts.forEach((_, i) => {
-      const c = c1.clone().lerp(c2, i / (pts.length - 1));
-      colors.push(c.r, c.g, c.b);
-    });
-    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+    for (let i = 0; i <= SEGMENTS; i++) {
+      const c = c1.clone().lerp(c2, i / SEGMENTS);
+      for (let j = 0; j <= RADIAL; j++) colors.push(c.r, c.g, c.b);
+    }
     geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-    this.compareArc = new THREE.Line(
+    this.compareArc = new THREE.Mesh(
       geo,
-      new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.9, depthWrite: false })
+      new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.9, depthWrite: false })
     );
     this.globeGroup.add(this.compareArc);
 
@@ -2730,7 +2734,7 @@ export class GlobeEngine {
       (ring.material as THREE.SpriteMaterial).opacity = this.globeFade * n.dim * (0.35 + 0.65 * clamp01((facing + 0.25) / 0.6));
     });
     if (this.compareArc) {
-      (this.compareArc.material as THREE.LineBasicMaterial).opacity = 0.9 * this.globeFade;
+      (this.compareArc.material as THREE.MeshBasicMaterial).opacity = 0.9 * this.globeFade;
     }
     if (this.compareDot && this.compareCurve.length) {
       const t = (now * 0.35) % 1;

@@ -8,6 +8,8 @@ export const RECITERS: Reciter[] = [
   { id: 'ar.husary', name: 'Mahmoud Khalil Al-Husary', arabicName: 'محمود خليل الحصري', serverUrl: 'https://cdn.islamic.network/quran/audio/128/ar.husary' },
   { id: 'ar.minshawi', name: 'Mohamed Siddiq El-Minshawi', arabicName: 'محمد صديق المنشاوي', serverUrl: 'https://cdn.islamic.network/quran/audio/128/ar.minshawi' },
   { id: 'ar.hudhaify', name: 'Ali Al-Hudhaify', arabicName: 'علي بن عبد الرحمن الحذيفي', serverUrl: 'https://cdn.islamic.network/quran/audio/128/ar.hudhaify' },
+  { id: 'ar.abdulbasitmujawwad', name: 'Abdul Basit Abdus-Samad (Mujawwad)', arabicName: 'عبد الباسط عبد الصمد (مجوّد)', serverUrl: 'https://everyayah.com/data/Abdul_Basit_Mujawwad_128kbps', everyAyahFolder: 'Abdul_Basit_Mujawwad_128kbps' },
+  { id: 'ar.minshawimujawwad', name: 'Mohamed Siddiq El-Minshawi (Mujawwad)', arabicName: 'محمد صديق المنشاوي (مجوّد)', serverUrl: 'https://everyayah.com/data/Minshawy_Mujawwad_192kbps', everyAyahFolder: 'Minshawy_Mujawwad_192kbps' },
 ];
 
 // Offline fallback with REAL text for page 1 (Al-Fatihah) and page 2 (start of Al-Baqarah).
@@ -56,6 +58,16 @@ export function getMushafPageImageUrl(pageNumber: number): string {
  * Gets Audio streaming URL for a specific Ayah by global index
  */
 export function getAyahAudioUrl(ayahGlobalNumber: number, reciterId: string = 'ar.alafasy'): string {
+  const folder = RECITERS.find((r) => r.id === reciterId)?.everyAyahFolder;
+  if (folder) {
+    let remaining = ayahGlobalNumber;
+    for (const s of SURAHS_LIST) {
+      if (remaining <= s.totalVerses) {
+        return `https://everyayah.com/data/${folder}/${String(s.number).padStart(3, '0')}${String(remaining).padStart(3, '0')}.mp3`;
+      }
+      remaining -= s.totalVerses;
+    }
+  }
   return `https://cdn.islamic.network/quran/audio/128/${reciterId}/${ayahGlobalNumber}.mp3`;
 }
 
