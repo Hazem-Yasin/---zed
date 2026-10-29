@@ -1,9 +1,9 @@
 /* Offline support. Plain service worker, no build step.
  *  - App shell + hashed /assets/*: cache-first (filenames change when content changes)
- *  - index.html (navigations): network-first, falls back to the cached shell
+ *  - index.html (navigations): stale-while-revalidate for instant startup with background update
  *  - Quran text/tafsir API (api.alquran.cloud): network-first, cached copy when offline
  *  - Audio is NOT cached (range requests, large) */
-const VERSION = 'v2';
+const VERSION = 'v3';
 const SHELL = `shell-${VERSION}`;
 const RUNTIME = `runtime-${VERSION}`;
 const API = `api-${VERSION}`;
@@ -21,6 +21,19 @@ self.addEventListener('activate', (event) => {
       .then(() => self.clients.claim())
   );
 });
+
+async function staleWhileRevalidate(request, cacheName) {
+  const cache = await caches.open(cacheName);
+  const hit = await cache.match(request);
+  const networkFetch = fetch(request)
+    .then((res) => {
+      if (res && res.ok) cache.put(request, res.clone());
+      return res;
+    })
+    .catch(() => hit);
+
+  return hit || networkFetch;
+}
 
 async function networkFirst(request, cacheName) {
   const cache = await caches.open(cacheName);
@@ -51,7 +64,7 @@ self.addEventListener('fetch', (event) => {
 
   if (url.origin === self.location.origin) {
     if (request.mode === 'navigate') {
-      event.respondWith(networkFirst(new Request('/'), SHELL));
+      event.respondWith(staleWhileRevalidate(new Request('/'), SHELL));
     } else if (url.pathname.startsWith('/assets/')) {
       event.respondWith(cacheFirst(request, RUNTIME));
     }

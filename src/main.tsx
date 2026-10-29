@@ -7,6 +7,10 @@ import { armSplashFailsafe } from './splash';
 
 armSplashFailsafe();
 
+// The app always opens on the globe: start fetching its chunk (and three.js) right now, in parallel with
+// React's first render, instead of waiting for <Suspense> to request it. App's lazy() import reuses this promise.
+void import('./components/globe/QuranGlobe');
+
 // Offline support (production only, so the dev server is never served stale files)
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {

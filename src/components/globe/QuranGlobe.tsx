@@ -284,6 +284,9 @@ export const QuranGlobe: React.FC<QuranGlobeProps> = ({ onOpenAyah, onOpenMindMa
         setCmpA(s.compare?.a ?? null);
         setCmpB(s.compare?.b ?? null);
         eng?.previewSurah(s.place.surah === null ? s.preview : null, s.overview);
+        if (s.revelationIntro) {
+          eng?.replayRevelationIntro();
+        }
         const st = surahPlayer.getState();
         if (s.listen !== null) {
           if (!(st.active && st.surah === s.listen)) surahPlayer.start(s.listen);

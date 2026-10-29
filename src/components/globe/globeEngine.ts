@@ -829,6 +829,31 @@ export class GlobeEngine {
     }
   }
 
+  /** Replays the staggered entrance animation of the 114 surahs based on revelation order (ترتيب النزول) */
+  replayRevelationIntro(staggerMs = 22) {
+    if (this.mode !== 'globe') {
+      if (this.sectionScene) this.disposeSectionScene();
+      if (this.current) this.disposeSurahScene();
+      this.globeFade = 1;
+      this.globeGroup.visible = true;
+      this.mode = 'globe';
+      this.cb.onModeChange('globe', null);
+    }
+    const startT = this.clock.elapsedTime;
+    const staggerSec = staggerMs / 1000;
+    for (const n of this.nodes) {
+      n.dim = 0;
+      n.scale = 0;
+      n.mesh.scale.setScalar(0);
+      n.cloudMesh.scale.setScalar(0);
+      n.glow.scale.setScalar(0);
+      (n.mesh.material as THREE.Material).opacity = 0;
+      (n.cloudMesh.material as THREE.Material).opacity = 0;
+      (n.glow.material as THREE.Material).opacity = 0;
+      n.revealTime = startT + (n.meta.revelationOrder - 1) * staggerSec;
+    }
+  }
+
   private overviewDist() {
     return this.defaultDist * 1.75;
   }
@@ -1219,7 +1244,7 @@ export class GlobeEngine {
   ): LabelItem {
     const el = document.createElement('div');
     el.style.cssText =
-      'position:absolute;left:0;top:0;white-space:nowrap;pointer-events:none;will-change:transform,opacity;' +
+      'position:absolute;left:0;top:0;white-space:nowrap;pointer-events:none;' +
       "font-family:'Amiri', 'Cairo', serif, system-ui, sans-serif;opacity:0;transition:transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;" +
       (opts.css || '');
     if (opts.html) el.innerHTML = opts.html;
@@ -2680,7 +2705,7 @@ export class GlobeEngine {
         const depth = 0.4 + 0.6 * clamp01((facing + 0.3) / 1.0);
         const hov = this.hoverNode === n;
         const listening = this.listenNode === n;
-        const scaleTarget = listening ? 1.45 + (this.listenPlaying ? 0.5 * this.listenPulse : 0) : hov ? 1.75 : 1;
+        const scaleTarget = listening ? 1.45 + (this.listenPlaying ? 0.5 * this.listenPulse : 0) : hov ? 1.75 : (revealed ? 1 : 0);
         n.scale += (scaleTarget - n.scale) * Math.min(1, dt * (listening ? 16 : 10));
         n.mesh.scale.setScalar(n.radius * n.scale);
         const o = this.globeFade * n.dim * depth;
@@ -2838,8 +2863,14 @@ export class GlobeEngine {
 
       v.project(this.camera);
       if ((v.z > 1 && !isListeningAyah && !isListeningSurah) || op < 0.02) {
-        l.el.style.opacity = '0';
+        if (l.el.style.opacity !== '0') {
+          l.el.style.opacity = '0';
+          l.el.style.display = 'none';
+        }
         continue;
+      }
+      if (l.el.style.display === 'none') {
+        l.el.style.display = '';
       }
       const x = (v.x * 0.5 + 0.5) * this.width;
       const y = (-v.y * 0.5 + 0.5) * this.height;

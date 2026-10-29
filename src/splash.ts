@@ -2,9 +2,9 @@
  * Startup splash. The markup lives in index.html (so it paints before any JS runs);
  * this module only decides when to take it away.
  */
-const MIN_VISIBLE_MS = 1800; // long enough to read the ayah once
-const FAILSAFE_MS = 8000; // never trap the user behind it
-const FADE_MS = 500;
+const MIN_VISIBLE_MS = 150; // smooth entry without artificial lag
+const FAILSAFE_MS = 6000; // failsafe fallback
+const FADE_MS = 250;
 
 let hidden = false;
 
@@ -19,7 +19,7 @@ export function hideSplash() {
     fill.style.width = `${fill.getBoundingClientRect().width}px`;
     fill.style.animation = 'none';
     void fill.offsetWidth; // commit the frozen width so the transition starts from it
-    fill.style.transition = 'width 0.35s ease-out';
+    fill.style.transition = 'width 0.2s ease-out';
     fill.style.width = '100%';
   }
   const wait = Math.max(0, MIN_VISIBLE_MS - performance.now());

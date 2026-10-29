@@ -22,6 +22,8 @@ export interface GlobeState {
   view: { level: GlobeLevel; filter: RevelationFilter; menu: boolean };
   /** Camera pulled far back so the whole globe is visible between the screen panels (outer globe only). */
   overview: boolean;
+  /** Replay the staggered revelation order (ترتيب النزول) opening animation */
+  revelationIntro?: boolean;
 }
 
 export const DEFAULT_GLOBE: GlobeState = {
@@ -32,6 +34,7 @@ export const DEFAULT_GLOBE: GlobeState = {
   compare: null,
   view: { level: 'surahs', filter: 'all', menu: false },
   overview: false,
+  revelationIntro: false,
 };
 
 export type GlobeCmd = { type: 'apply'; s: GlobeState } | { type: 'restore' };

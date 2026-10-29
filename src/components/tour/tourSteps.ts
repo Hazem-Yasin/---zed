@@ -135,6 +135,15 @@ export const TOUR_STEPS: TourStep[] = [
     ms: 6000,
   },
   {
+    id: 'revelation-order',
+    part: 'globe',
+    view: 'globe',
+    globe: globe({ revelationIntro: true }),
+    title: 'الظهور بترتيب النزول',
+    text: 'تظهر السور على الكرة تدريجياً بحسب ترتيب نزولها التاريخي (بدءاً من أول ما نزل كالعلق والقلم حتى آخر ما نزل)، لترى كيف تتابعت آيات وسور القرآن نزولاً في مكة والمدينة.',
+    ms: 6000,
+  },
+  {
     id: 'preview',
     part: 'globe',
     view: 'globe',
